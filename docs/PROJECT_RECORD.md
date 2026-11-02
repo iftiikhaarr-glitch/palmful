@@ -35,25 +35,32 @@ Keep this file current; it is how work continues across sessions.
 
 **Cut (excluded features):** multiplayer, AI, accounts, procedural ecosystem, creatures leaving the hand, voice.
 
-## What works now (2 Nov 2026)
+## What works now (2 Nov 2026, evening)
 
-- `src/palm/`: pure simulation (palm frame from WebXR joints, One-Euro filtering, friction sliding, finger paths, bloom). 8 unit tests pass (`npm test`).
-- `src/palmful-system.ts`: reads joints from WebXR, renders Mote (procedural), contact shadow, fingertip beacon, flowers that stay on bloomed fingertips, synthesized chime, hint panel, pause on system UI, tracking-loss handling, metrics on `?debug=1`, joint dots on `?skeleton=1`.
-- Emulator evidence: `docs/evidence/` (logs + crop). Typecheck and production build pass.
+- Repo: https://github.com/iftiikhaarr-glitch/palmful · Live: https://iftiikhaarr-glitch.github.io/palmful/ (laptop: add `?emulate=1`).
+- CI on every push: clean install, typecheck, 10 unit tests, production build, an end-to-end full session in headless Chromium, then deploy to Pages.
+- One complete session: guide Mote to three fingertips (middle → index → ring), each blooms and keeps its flower; then "In bloom! Make a fist to start again"; a fist held 0.8 s restarts. Blooms are capped at three.
+- Tracking loss: Mote freezes and dims where it is, then resumes; it switches hands only after 3 s and only to a palm-up hand.
+- Laptop mode `?emulate=1`: IWER emulator, keyboard tilts an emulated right hand, joint dots instead of a hand, narrowed FOV.
+- `?debug=1` metrics: fps, tracked %, palm-up %, jitter, losses, longest loss, first bloom time. The jitter figure is a high-pass of Mote's position, so it includes deliberate motion. Read it only during the hold-still trial.
 
 ## Not verified (needs a headset): see `docs/DEVICE_TEST.md`
 
 ## Open issues
 
-- Not yet on GitHub / not deployed (needs the entrant to create the repo).
+- External CDN loads: IWSDK fetches hand-visual models from cdn.jsdelivr.net (fine online; in a blocked network the hand is tracked without a visual).
 - IWSDK hand visuals in AR on a real Quest: unknown whether a virtual hand is drawn over the real one.
 - Finger occlusion not implemented.
-- Onboarding is a text hint; no hatch moment yet; no restart gesture yet.
+- Onboarding is a text hint; no hatch moment yet.
 - Emulator screenshot via the CLI crashes the managed browser in this container; Playwright `page.screenshot` (test/capture.mjs) works.
 
 ## Next task
 
-Push to GitHub, deploy Pages, get one headset session (`docs/DEVICE_TEST.md`).
+Get one Quest 3/3S session by **Sun 8 Nov** (`docs/DEVICE_TEST.md`): anyone with a Quest can open the live URL with `?debug=1` and record with the headset's built-in recorder.
+
+## Alternative if there is no convincing device evidence by 8 Nov: "Leaf"
+
+Same creature, same tilt-and-bloom loop, but Mote rides a small **leaf you hold between thumb and index finger** instead of your bare palm. The leaf is a rigid virtual object attached at the pinch/grasp point and oriented by the wrist, so Mote never has to look registered to skin. That registration is the unproven part. Pinch and wrist pose are the coarsest, most robust hand signals, and they are what Meta VR Glasses rely on. Fingertip targets become flowers on the leaf's edge. In emulator footage the leaf is drawn, so the video shows the whole interaction clearly; Palmful on a bare palm cannot be shown that way. Cost: about one day, since the simulation only needs a different surface frame (leaf plane instead of palm frame). Trade-off: less magical than "it lives on my skin", more legible and reliable.
 
 ## Demo-video fallback (if no headset footage)
 

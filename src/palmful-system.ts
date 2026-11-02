@@ -37,6 +37,8 @@ import {
   makeHandJoints,
   makePalmFrame,
   OneEuro3,
+  FIST_REACH,
+  fingertipReach,
   type PalmFrame,
 } from './palm/hand-frame.js';
 import { type Vec3, v3 } from './palm/math.js';
@@ -44,7 +46,7 @@ import { type Vec3, v3 } from './palm/math.js';
 const PARAMS = new URLSearchParams(location.search);
 const DEBUG = PARAMS.has('debug');
 /** Draw tracked joints as dots (the emulator does not render hands in AR). */
-const SKELETON = PARAMS.has('skeleton');
+const SKELETON = PARAMS.has('skeleton') || PARAMS.has('emulate');
 const GRAVITY = v3(0, -9.81, 0);
 const COLORS = {
   calm: new Color('#ffb35c'),
@@ -74,6 +76,8 @@ export interface PalmfulMetrics {
   sessionS: number;
   handedness: string | null;
   handSwitches: number;
+  sessionsCompleted: number;
+  restarts: number;
 }
 
 declare global {
@@ -117,6 +121,7 @@ export class PalmfulSystem extends createSystem({}) {
   private head = new Vector3();
   private audio: AudioContext | null = null;
   private hintTimer = 0;
+  private fistT = 0;
   private metrics: PalmfulMetrics = {
     frames: 0,
     xrFrames: 0,
@@ -132,6 +137,8 @@ export class PalmfulSystem extends createSystem({}) {
     sessionS: 0,
     handedness: null,
     handSwitches: 0,
+    sessionsCompleted: 0,
+    restarts: 0,
   };
 
   init(): void {
@@ -160,7 +167,11 @@ export class PalmfulSystem extends createSystem({}) {
     this.buildHint();
     if (SKELETON) {
       const geo = new SphereGeometry(0.004, 8, 6);
-      const mat = new MeshBasicMaterial({ color: '#e8d6c8', transparent: true, opacity: 0.55 });
+      const mat = new MeshBasicMaterial({
+        color: PARAMS.has('emulate') ? '#7a6a5e' : '#e8d6c8',
+        transparent: true,
+        opacity: 0.6,
+      });
       for (let i = 0; i < this.keys.length; i++) {
         const m = new Mesh(geo, mat);
         this.jointDots.push(m);
@@ -293,6 +304,13 @@ export class PalmfulSystem extends createSystem({}) {
     if (this.tracked) {
       if (this.frame.normal.y > 0.5) this.metrics.palmUpFrames++;
       const before = this.st.slideTime;
+      // Session end: after three blooms, a closed fist (held briefly) restarts.
+      if (this.st.blooms >= 3 && fingertipReach(this.joints) < FIST_REACH) {
+        this.fistT += delta;
+        if (this.fistT > 0.8) this.restart();
+      } else {
+        this.fistT = 0;
+      }
       const res = stepCreature(this.st, this.frame, GRAVITY, delta);
       if (this.metrics.firstSlideS === null && this.st.slideTime > before)
         this.metrics.firstSlideS = this.metrics.sessionS;
@@ -463,10 +481,26 @@ export class PalmfulSystem extends createSystem({}) {
     }
   }
 
+  private restart(): void {
+    for (const f of FINGERS) {
+      const g = this.flowers[f];
+      if (g) {
+        this.root.remove(g);
+        delete this.flowers[f];
+        delete this.flowerAge[f];
+      }
+    }
+    Object.assign(this.st, makeCreature());
+    this.fistT = 0;
+    this.metrics.restarts++;
+    this.metrics.firstSlideS = null;
+  }
+
   private onBloom(f: FingerName): void {
     if (!this.flowers[f]) this.flowers[f] = this.makeFlower(f);
     this.flowerAge[f] = 0;
     if (this.metrics.firstBloomS === null) this.metrics.firstBloomS = this.metrics.sessionS;
+    if (this.st.blooms >= 3) this.metrics.sessionsCompleted++;
     this.chime(this.st.blooms >= 3);
   }
 
@@ -497,7 +531,7 @@ export class PalmfulSystem extends createSystem({}) {
   private hintFor(): string {
     const st = this.st;
     if (!this.tracked) return 'Hold out one hand, palm up';
-    if (st.blooms >= 3) return 'Your hand is in bloom';
+    if (st.blooms >= 3) return this.fistT > 0 ? 'Hold the fist…' : 'In bloom! Make a fist to start again';
     if (st.mood === 'cling') return 'Mote is holding on. Turn your palm up';
     if (st.blooms === 0 && this.metrics.firstSlideS === null) return 'Tip your hand gently';
     if (st.blooms === 0) return 'Guide Mote to the glowing fingertip';
@@ -541,10 +575,15 @@ export class PalmfulSystem extends createSystem({}) {
     c.fill();
     c.fillStyle = '#fff4e0';
     c.textAlign = 'center';
-    c.font = '600 64px system-ui, sans-serif';
+    // Shrink the font until the line fits the panel.
+    let size = 64;
+    do {
+      c.font = `600 ${size}px system-ui, sans-serif`;
+      size -= 4;
+    } while (size > 28 && c.measureText(text).width > this.hintCanvas.width - 80);
     c.fillText(text, this.hintCanvas.width / 2, 104);
     if (DEBUG) {
-      c.font = '40px ui-monospace, monospace';
+      c.font = '34px ui-monospace, monospace';
       c.fillStyle = '#b8f0c8';
       dbg.split('\n').forEach((line, i) => c.fillText(line, this.hintCanvas.width / 2, 190 + i * 60));
     }

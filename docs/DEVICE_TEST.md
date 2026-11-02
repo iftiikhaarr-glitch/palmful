@@ -26,6 +26,7 @@ Emulator frame rates (1–30 fps) are software rendering in a container and say
    `?debug=1` appended (example: `https://<user>.github.io/palmful/?debug=1`).
 2. Tap **Enter AR**. Put controllers down; hand tracking must be on
    (Settings → Movement tracking → Hand tracking).
+   Live URL: https://iftiikhaarr-glitch.github.io/palmful/?debug=1
 3. Sit. Hold your right hand palm up about 30 cm in front of your chest.
 4. Start the Quest's own recording (Meta button → Camera → Record video).
    This footage is also usable for the demo video.
@@ -35,7 +36,7 @@ losses, longest loss, place/mood/blooms, time to first bloom.
 
 ## Trials (record every number in the table below)
 
-- **T1 Hold still (60 s):** palm up, flat, still. Note jitter and tracked %.
+- **T1 Hold still (60 s):** palm up, flat, still. Note jitter and tracked %. (Jitter includes deliberate motion, so it is only meaningful here.)
 - **T2 Tilt play (60 s):** tilt slowly 0–45° in all directions; get one bloom.
 - **T3 Cup and roll (60 s):** cup the hand, roll it sideways, turn palm down and back up.
 - **T4 Interrupt:** press the Meta button for 5 s, return. Then hide the hand behind your back for 5 s, bring it back.
@@ -48,6 +49,10 @@ losses, longest loss, place/mood/blooms, time to first bloom.
 | T3 | | | | | | | |
 | T4 | | | | | | | |
 | T5 | | | | | | | |
+
+**The deciding question:** does Mote visibly stay on a real palm during
+natural movement? The recording from T2 is the primary evidence; the numbers
+support it.
 
 ## Decision rules (pre-registered)
 

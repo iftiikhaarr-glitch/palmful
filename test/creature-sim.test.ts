@@ -82,3 +82,20 @@ test('tilting toward the wrist keeps it on the palm (edge clamps, no fall)', () 
   assert.equal(st.place, 'palm');
   assert.ok(st.edgeHits > 0);
 });
+
+test('fist detection: open hand is not a fist, curled hand is', async () => {
+  const { fingertipReach, FIST_REACH } = await import('../src/palm/hand-frame.ts');
+  const open = fingertipReach(synthHand({}));
+  const fist = fingertipReach(synthHand({ curlDeg: 75 }));
+  assert.ok(open > FIST_REACH, `open reach ${open}`);
+  assert.ok(fist < FIST_REACH, `fist reach ${fist}`);
+});
+
+test('a session ends at three blooms: resting on a fingertip afterwards blooms nothing', () => {
+  const st = makeCreature();
+  st.blooms = 3;
+  st.target = 'middle';
+  const { blooms } = run(8, { pitchDeg: 35 }, st);
+  assert.equal(blooms, 0);
+  assert.equal(st.blooms, 3);
+});

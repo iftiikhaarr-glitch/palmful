@@ -245,3 +245,19 @@ export class OneEuro3 {
     return copy(out, this.prev);
   }
 }
+
+/**
+ * Mean distance (m) from the index, middle and ring fingertips to the wrist.
+ * Open hand is roughly 0.17-0.19 m; a closed fist roughly 0.08-0.10 m.
+ */
+export function fingertipReach(j: HandJoints): number {
+  return (
+    (distance(j.finger.index[3], j.wrist) +
+      distance(j.finger.middle[3], j.wrist) +
+      distance(j.finger.ring[3], j.wrist)) /
+    3
+  );
+}
+
+/** Below this fingertip reach the hand counts as a fist. */
+export const FIST_REACH = 0.12;

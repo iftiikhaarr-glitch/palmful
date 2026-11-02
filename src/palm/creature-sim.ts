@@ -30,6 +30,8 @@ export const CLING_NORMAL = 2.0; // ~78 degrees of tilt
 export const BODY_RADIUS = 0.009;
 /** How long Mote must rest on the glowing fingertip to make it bloom. */
 export const DWELL_TO_BLOOM = 0.6;
+/** One complete session is three blooms; after that nothing more blooms. */
+export const MAX_BLOOMS = 3;
 const KNUCKLE_CATCH = 0.011; // how close to a knuckle counts as "entering" a finger
 const TIP_ZONE = 0.008;
 
@@ -193,7 +195,7 @@ export function stepCreature(
 
   // Bloom: resting on the target fingertip.
   const atTip = st.place !== 'palm' && st.s >= frame.pathLen[st.place] - TIP_ZONE;
-  if (atTip && st.place === st.target) {
+  if (atTip && st.place === st.target && st.blooms < MAX_BLOOMS) {
     st.dwellT += dt;
     if (st.dwellT >= DWELL_TO_BLOOM) {
       st.blooms++;
