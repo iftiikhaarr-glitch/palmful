@@ -1,5 +1,10 @@
 # Palmful device test protocol (Quest 3 / 3S)
 
+> **Testers: use [`QUEST_TEST_GUIDE.md`](QUEST_TEST_GUIDE.md)**, the short
+> 3-minute version with the final pass/fail table. This file keeps the original
+> pre-registered criteria (2 Nov 2026) for the record. The guide is stricter on
+> tracking (pass ≥ 95 %, fail < 90 %) and adds a frame-rate and recovery check.
+
 Criteria written on 2 Nov 2026, **before** any headset result exists. Do not
 edit thresholds after seeing results; record them as they are.
 

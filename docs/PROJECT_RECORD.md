@@ -29,20 +29,24 @@ Keep this file current; it is how work continues across sessions.
 
 **Deciding question:** does Mote visibly stay on a real palm during natural movement on Quest 3/3S? Everything else waits on that answer.
 
-**Known weaknesses:** (1) Passthrough purpose: the stage is the hand, not the room. Real-table planting is a *later* feature: it does not answer the deciding question. (2) The core risk (tracking on a tilted palm) cannot be checked without a headset. (3) Gaze interactions that judging mentions are Unity/Unreal ISDK only.
+**Known weaknesses:** (0) Not yet seen on a Quest: whether the Quest Browser shows its own Enter prompt from `offerSession` alongside our button. (1) Passthrough purpose: the stage is the hand, not the room. Real-table planting is a *later* feature: it does not answer the deciding question. (2) The core risk (tracking on a tilted palm) cannot be checked without a headset. (3) Gaze interactions that judging mentions are Unity/Unreal ISDK only.
 
 **Scope:** one complete, reliable session (seed, guide, three blooms, done/restart).
 
 **Cut (excluded features):** multiplayer, AI, accounts, procedural ecosystem, creatures leaving the hand, voice.
 
-## What works now (2 Nov 2026, evening)
+## What works now (2 Nov 2026, late)
 
-- Repo: https://github.com/iftiikhaarr-glitch/palmful · Live: https://iftiikhaarr-glitch.github.io/palmful/ (laptop: add `?emulate=1`).
-- CI on every push: clean install, typecheck, 10 unit tests, production build, an end-to-end full session in headless Chromium, then deploy to Pages.
-- One complete session: guide Mote to three fingertips (middle → index → ring), each blooms and keeps its flower; then "In bloom! Make a fist to start again"; a fist held 0.8 s restarts. Blooms are capped at three.
-- Tracking loss: Mote freezes and dims where it is, then resumes; it switches hands only after 3 s and only to a palm-up hand.
-- Laptop mode `?emulate=1`: IWER emulator, keyboard tilts an emulated right hand, joint dots instead of a hand, narrowed FOV.
-- `?debug=1` metrics: fps, tracked %, palm-up %, jitter, losses, longest loss, first bloom time. The jitter figure is a high-pass of Mote's position, so it includes deliberate motion. Read it only during the hold-still trial.
+- Repo: https://github.com/iftiikhaarr-glitch/palmful · Live: https://iftiikhaarr-glitch.github.io/palmful/ (laptop: `?emulate=1`).
+- CI on every push: clean install, typecheck, 11 unit tests, production build, a full laptop-mode session in headless Chromium, a no-WebXR landing check, then deploy.
+- **First minute, mostly wordless:**
+  - A seed floats in front of you ("Hold out your hand / palm up").
+  - It flies to whichever hand is offered palm-up and hatches into Mote.
+  - When Mote sits idle, a golden light trail runs from it to the glowing target fingertip, and Mote faces along it.
+  - During play, text appears only for "Turn your palm up" (clinging), "Bring your hand back" (tracking lost), or "Tip your hand" after about 8 s with no tilt.
+- **Completion:** "All three in bloom", three petal-coloured dots, and "make a fist to play again", placed above and beyond the hand. An automated screen-space check finds 0 of 18 hand/Mote/flower points under the panel in the emulated view. A fist replays from the hatch.
+- **2D landing page:** an "Enter AR" button (fallback for browsers without `offerSession`), or, without WebXR AR, a note to open on Quest plus a link to the laptop demo.
+- Tracking loss, pause, debug metrics and laptop mode are unchanged from before.
 
 ## Not verified (needs a headset): see `docs/DEVICE_TEST.md`
 
@@ -56,7 +60,14 @@ Keep this file current; it is how work continues across sessions.
 
 ## Next task
 
-Get one Quest 3/3S session by **Sun 8 Nov** (`docs/DEVICE_TEST.md`): anyone with a Quest can open the live URL with `?debug=1` and record with the headset's built-in recorder.
+Get one Quest 3/3S session by **Sun 8 Nov** using `docs/QUEST_TEST_GUIDE.md`.
+
+## Proposed replay challenge (not built; waiting for approval)
+
+**"Gentle hands":** each session counts how often Mote bumps the palm edge or has to cling. Finishing three blooms with zero bumps grows a fourth, golden flower on the thumb; your best (fewest bumps, then fastest) is remembered on the device.
+- *Value:* a reason to replay that rewards slow, smooth movement. That is the movement hand tracking handles best, so it doesn't push players toward fast moves that cause tracking errors. Mostly reuses existing data (`edgeHits` and the cling state are already tracked), and it speaks to the "Best Reason to Come Back" award.
+- *Cost:* about half a day. Bump counter, thumb finger path (a new finger in the simulation plus a test), a "best" line on the completion panel, and saving the best to the device.
+- *Risk:* on a real Quest, tracking jitter could register as bumps and feel unfair. That threshold needs device data first, so build it only after the Quest test passes.
 
 ## Alternative if there is no convincing device evidence by 8 Nov: "Leaf"
 

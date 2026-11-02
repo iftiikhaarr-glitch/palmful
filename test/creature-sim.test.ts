@@ -99,3 +99,29 @@ test('a session ends at three blooms: resting on a fingertip afterwards blooms n
   assert.equal(blooms, 0);
   assert.equal(st.blooms, 3);
 });
+
+test('guide trail runs from Mote to the target fingertip, getting closer each step', async () => {
+  const { guidePath } = await import('../src/palm/creature-sim.ts');
+  const { distance } = await import('../src/palm/math.ts');
+  const frame = makePalmFrame();
+  computePalmFrame(synthHand({}), 'right', frame);
+  for (const target of ['middle', 'index', 'ring'] as const) {
+    const st = makeCreature();
+    st.target = target;
+    const pts = Array.from({ length: 7 }, () => v3());
+    guidePath(st, frame, pts);
+    const tip = frame.path[target][3];
+    assert.ok(distance(pts[6], tip) < 0.002, `${target}: last point ${distance(pts[6], tip)} m from tip`);
+    for (let i = 1; i < 7; i++)
+      assert.ok(distance(pts[i], tip) < distance(pts[i - 1], tip) + 1e-6, `${target}: point ${i} not closer`);
+  }
+  // From the wrong finger, the trail first goes back toward the palm.
+  const st = makeCreature();
+  st.place = 'middle';
+  st.s = 0.06;
+  st.target = 'index';
+  const pts = Array.from({ length: 9 }, () => v3());
+  guidePath(st, frame, pts);
+  assert.ok(pts[2].z > pts[0].z, 'second dots should head back toward the wrist (+z)');
+  assert.ok(distance(pts[8], frame.path.index[3]) < 0.002);
+});

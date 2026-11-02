@@ -63,13 +63,13 @@ export async function installLaptopEmulator(): Promise<void> {
   const panel = document.createElement('div');
   panel.id = 'laptop-panel';
   panel.style.cssText =
-    'position:fixed;left:50%;bottom:16px;transform:translateX(-50%);z-index:10;' +
-    'font:14px/1.45 system-ui,sans-serif;color:#fff4e0;background:rgba(20,16,28,.85);' +
-    'padding:12px 16px;border-radius:12px;max-width:min(560px,calc(100vw - 32px));text-align:center';
+    'position:fixed;left:16px;top:16px;z-index:10;' +
+    'font:13px/1.45 system-ui,sans-serif;color:#fff4e0;background:rgba(20,16,28,.85);' +
+    'padding:10px 14px;border-radius:12px;max-width:min(300px,calc(100vw - 32px));text-align:left';
   panel.innerHTML =
     '<b>Laptop emulator</b>: not a headset test.<br>' +
     '<button id="laptop-start" style="margin:8px 0;padding:8px 18px;font:inherit;font-weight:600;border-radius:8px;border:0;background:#ffb35c;color:#221;cursor:pointer">Start</button><br>' +
-    '<span>↑/↓ tip fingertips down/up · ←/→ roll toward pinky/index · Space flat · F fist · H hide hand</span><br>' +
+    '<span><b>Space</b> raise hand, palm up (again: level it)<br><b>↑ ↓</b> tip fingertips down / up<br><b>← →</b> roll toward pinky / index<br><b>F</b> fist &nbsp; <b>H</b> lower hand</span><br>' +
     '<code id="laptop-status" style="opacity:.8"></code>';
   document.body.appendChild(panel);
   const status = panel.querySelector('#laptop-status') as HTMLElement;
@@ -85,6 +85,10 @@ export async function installLaptopEmulator(): Promise<void> {
       else await new Promise((res) => setTimeout(res, 250));
     }
     await call('set_input_mode', { mode: 'hand' });
+    // Start with no hand raised, like putting on a headset: the seed waits.
+    await call('set_connected', { device: 'hand-left', connected: false });
+    await call('set_connected', { device: 'hand-right', connected: false });
+    hidden = true;
     await call('set_hand_pose', { device: 'hand-right', poseId: 'flat' });
     await call('set_transform', { device: 'headset', position: { x: 0.04, y: 1.42, z: -0.05 } });
     await call('look_at', { device: 'headset', target: { x: 0.05, y: 1.14, z: -0.38 } });
@@ -112,6 +116,10 @@ export async function installLaptopEmulator(): Promise<void> {
       case ' ':
         pitch = 0;
         roll = 0;
+        if (hidden) {
+          hidden = false;
+          await call('set_connected', { device: 'hand-right', connected: true });
+        }
         break;
       case 'f':
       case 'F':

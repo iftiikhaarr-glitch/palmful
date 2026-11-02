@@ -1,5 +1,6 @@
 import { World } from '@iwsdk/core';
 import projectOptions from 'virtual:iwsdk-project';
+import { mountLanding } from './landing.js';
 import { EMULATE, installLaptopEmulator } from './laptop-emulator.js';
 import { PalmfulSystem } from './palmful-system.js';
 
@@ -12,6 +13,7 @@ async function main() {
     projectOptions,
   );
   world.registerSystem(PalmfulSystem);
+  if (!EMULATE) void mountLanding(world);
 }
 
 void main();

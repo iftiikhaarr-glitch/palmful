@@ -227,3 +227,67 @@ export function creatureWorld(
   else pointOnPath(frame.path[st.place], st.s, outPos, tan);
   return addScaled(outPos, outPos, frame.normal, BODY_RADIUS);
 }
+
+// ---------- guide trail ----------
+
+const gp = [v3(), v3(), v3(), v3(), v3(), v3(), v3(), v3(), v3(), v3()];
+const gTmp = v3();
+
+/**
+ * Evenly spaced points along the route Mote would take to the target
+ * fingertip (palm -> knuckle -> finger joints -> tip). Writes `out.length`
+ * points into `out`. Used to draw a light trail; no text needed.
+ */
+export function guidePath(st: CreatureState, frame: PalmFrame, out: Vec3[]): void {
+  let n = 0;
+  const push = (p: Vec3) => copy(gp[n++], p);
+  creatureWorld(st, frame, gTmp);
+  addScaled(gTmp, gTmp, frame.normal, -BODY_RADIUS);
+  push(gTmp);
+  const t = st.target;
+  if (st.place !== 'palm' && st.place !== t) {
+    // walk back down the current finger to its knuckle first
+    const path = frame.path[st.place];
+    let acc = 0;
+    let seg = 0;
+    for (let i = 0; i < 3; i++) {
+      const d = Math.hypot(path[i + 1].x - path[i].x, path[i + 1].y - path[i].y, path[i + 1].z - path[i].z);
+      if (acc + d >= st.s) break;
+      acc += d;
+      seg = i + 1;
+    }
+    for (let i = seg; i >= 0; i--) push(path[i]);
+  }
+  if (st.place !== t) {
+    for (let i = 0; i < 4; i++) push(frame.path[t][i]);
+  } else {
+    // already on the target finger: continue from current position to the tip
+    const path = frame.path[t];
+    let acc = 0;
+    for (let i = 0; i < 3; i++) {
+      const d = Math.hypot(path[i + 1].x - path[i].x, path[i + 1].y - path[i].y, path[i + 1].z - path[i].z);
+      acc += d;
+      if (acc > st.s) push(path[i + 1]);
+    }
+    if (n === 1) push(path[3]);
+  }
+  // resample the polyline into out.length evenly spaced points
+  let total = 0;
+  for (let i = 0; i < n - 1; i++) total += Math.hypot(gp[i + 1].x - gp[i].x, gp[i + 1].y - gp[i].y, gp[i + 1].z - gp[i].z);
+  for (let k = 0; k < out.length; k++) {
+    let want = out.length === 1 ? total : (total * k) / (out.length - 1);
+    let i = 0;
+    for (; i < n - 1; i++) {
+      const d = Math.hypot(gp[i + 1].x - gp[i].x, gp[i + 1].y - gp[i].y, gp[i + 1].z - gp[i].z);
+      if (want <= d || i === n - 2) {
+        const tt = d > 1e-6 ? Math.min(1, want / d) : 0;
+        out[k].x = gp[i].x + (gp[i + 1].x - gp[i].x) * tt;
+        out[k].y = gp[i].y + (gp[i + 1].y - gp[i].y) * tt;
+        out[k].z = gp[i].z + (gp[i + 1].z - gp[i].z) * tt;
+        break;
+      }
+      want -= d;
+    }
+    if (n < 2) copy(out[k], gp[0]);
+  }
+}

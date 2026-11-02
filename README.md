@@ -14,24 +14,30 @@ abandoning the concept.
 ## Try it on a laptop (no headset)
 
 Open **https://iftiikhaarr-glitch.github.io/palmful/?emulate=1** in Chrome or
-Edge, click **Start**, then use the keyboard:
+Edge and click **Start**. A seed floats, waiting for a palm.
 
 | Key | Does |
 |---|---|
+| Space | raise your hand palm up (press again later to level it) |
 | ↑ / ↓ | tip the fingertips down / up (5° per press) |
 | ← / → | roll toward the pinky / index side |
-| Space | flat palm |
-| F | toggle fist (after three blooms, hold a fist to restart) |
-| H | hide / show the hand (simulates tracking loss) |
+| F | toggle a fist (after three blooms, a fist replays) |
+| H | lower / raise the hand (simulates tracking loss) |
 
-One full session: ↑ ×7 → Mote slides to the middle fingertip and blooms.
-Space, ↓ ×6 → back to the palm. Space, → ×6 → toward the index side; then
-↑ ×7 and ← ×4 → index blooms. Space, ↓ ×6, Space, ← ×6, then ↑ ×7 and → ×4 →
-ring blooms ("In bloom!"). Press F → restart.
+One full session: Space → the seed lands and hatches; when Mote sits still a
+golden trail shows the way. ↑ ×7 → middle fingertip blooms. Space, ↓ ×6 →
+back to the palm. Space, → ×6, then ↑ ×7, ← ×4 → index blooms. Space, ↓ ×6,
+Space, ← ×6, then ↑ ×7, → ×4 → ring blooms: "All three in bloom". F, then F
+again → hatches again.
 
 Add `&debug=1` for the metrics panel. Laptop mode uses Meta's IWER emulator with
-a narrowed field of view and joint dots in place of a hand. It proves the game
-logic only, **not** tracking quality or Quest performance.
+a narrowed field of view and dots in place of a hand. It shows that the game
+logic works; it does **not** show tracking quality or Quest performance.
+
+## Test on a Quest 3 / 3S
+
+Follow [`docs/QUEST_TEST_GUIDE.md`](docs/QUEST_TEST_GUIDE.md) (3 minutes of play,
+with what to send back and pass/fail criteria).
 
 ## Develop
 
@@ -43,11 +49,10 @@ npm test          # simulation unit tests (Node, no browser)
 npm run build     # production build in dist/
 npx vite preview --port 4173 &   # serves dist/ at https://localhost:4173
 npm run e2e -- https://localhost:4173/ .   # plays a full session headlessly
+node test/landing-e2e.mjs https://localhost:4173/ .   # 2D landing without WebXR
 npm run dev       # IWSDK dev server + emulator in a managed browser
 ```
 
-On a Quest 3/3S: open the live URL (without `?emulate`) in the Quest Browser,
-tap **Enter AR**, put the controllers down. Add `?debug=1` for the metrics panel.
 
 ## Layout
 
@@ -57,6 +62,7 @@ src/palm/hand-frame.ts     WebXR joints -> palm frame + finger paths, One-Euro f
 src/palm/creature-sim.ts   friction sliding, finger walking, bloom (pure, tested)
 src/palmful-system.ts      IWSDK system: reads joints, renders, metrics, restart
 src/laptop-emulator.ts     ?emulate=1 laptop mode (IWER + keyboard hand)
+src/landing.ts             2D page: Enter AR button, or where to play
 test/                      unit tests + emulator drive scripts
 docs/PROJECT_RECORD.md     decisions, verified facts, open issues, next task
 docs/DEVICE_TEST.md        headset protocol and pre-registered decision rules
