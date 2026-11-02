@@ -14,7 +14,7 @@ Keep this file current; it is how work continues across sessions.
 - Judging: Stage 1 pass/fail viability; Stage 2 four equal criteria: Innovation & Creativity, Experience Design, Technical Implementation (min **60 fps** on Quest hardware), Polish & Presentation.
 - Passthrough must be purposeful: the real room should change the experience. Entries using it are judged on scene understanding and holding up in untested rooms.
 - No changes after the deadline. No logos/brands, no identifiable people other than the entrant.
-- **Not yet seen:** the FAQ page (the claim that judging devices are Quest 3/3S is unverified).
+- FAQ (checked by the entrant on 2 Nov 2026): **judges use Quest 3 or 3S**; owning a headset is **not required** to enter.
 
 ## Decisions
 
@@ -27,7 +27,11 @@ Keep this file current; it is how work continues across sessions.
 | 2 Nov | Static friction in the simulation | Doubles as the game feel ("sits until you tip it") and as a dead-zone against tracking jitter |
 | 2 Nov | Mote stays on its hand during tracking loss; switches hands only after 3 s and only to a palm-up hand | Emulator found the first version teleporting Mote to the idle hand |
 
-**Known weaknesses:** (1) Passthrough purpose: the stage is the hand, not the room. Judges ask that the room matter. Candidate fix after the device gate: finished blooms get planted on your real table, a persistent garden for a reason to come back. (2) The core risk (tracking on a tilted palm) cannot be checked without a headset. (3) Gaze interactions that judging mentions are Unity/Unreal ISDK only.
+**Deciding question:** does Mote visibly stay on a real palm during natural movement on Quest 3/3S? Everything else waits on that answer.
+
+**Known weaknesses:** (1) Passthrough purpose: the stage is the hand, not the room. Real-table planting is a *later* feature: it does not answer the deciding question. (2) The core risk (tracking on a tilted palm) cannot be checked without a headset. (3) Gaze interactions that judging mentions are Unity/Unreal ISDK only.
+
+**Scope:** one complete, reliable session (seed, guide, three blooms, done/restart).
 
 **Cut (excluded features):** multiplayer, AI, accounts, procedural ecosystem, creatures leaving the hand, voice.
 
