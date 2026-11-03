@@ -41,6 +41,7 @@ import {
   type FingerName,
   type HandJoints,
   JOINT_NAMES,
+  DRAW_JOINT_NAMES,
   makeHandJoints,
   makePalmFrame,
   OneEuro3,
@@ -69,12 +70,18 @@ import {
   stepCatch,
 } from './palm/catch-sim.js';
 import { type Vec3, v3 } from './palm/math.js';
+import { HandSilhouette } from './hand-silhouette.js';
 import { chooseHand, type Engagement, type HandView, makeEngagement, type Side } from './palm/two-hand.js';
 
 const PARAMS = new URLSearchParams(location.search);
 const DEBUG = PARAMS.has('debug');
 /** Draw tracked joints as dots (the emulator does not render hands in AR). */
 const SKELETON = PARAMS.has('skeleton') || PARAMS.has('emulate');
+/**
+ * Bright joints + bone lines. Laptop play shows a soft hand silhouette with
+ * subtle joints instead; add &debug=1 (or ?skeleton=1) for the full skeleton.
+ */
+const FULL_SKELETON = DEBUG || PARAMS.has('skeleton');
 /** Experimental catch mode (?catch=1); the three-bloom game is the default. */
 export const MODE: 'bloom' | 'catch' = PARAMS.has('catch') ? 'catch' : 'bloom';
 /** Optional two-hand catching (?catch=1&hands=2): either open palm may catch. */
@@ -88,6 +95,7 @@ interface HandTrack {
   tracked: boolean;
   dots: Mesh[];
   bones: Mesh[];
+  silhouette: HandSilhouette | null;
 }
 /** Laptop emulator only: draw a dark room into the XR view (never on a Quest). */
 const EMULATED_VIEW = PARAMS.has('emulate');
@@ -100,10 +108,10 @@ const FLASH_S = 1.5;
  * the catch area, or anything on a Quest. Saved in this browser only.
  */
 export type HandSize = 'S' | 'M' | 'L';
-const HAND_SIZES: Record<HandSize, { joint: number; bone: number }> = {
-  S: { joint: 0.0035, bone: 0.0012 },
-  M: { joint: 0.005, bone: 0.002 },
-  L: { joint: 0.0072, bone: 0.0032 },
+const HAND_SIZES: Record<HandSize, { joint: number; bone: number; silhouette: number }> = {
+  S: { joint: 0.0035, bone: 0.0012, silhouette: 0.8 },
+  M: { joint: 0.005, bone: 0.002, silhouette: 1 },
+  L: { joint: 0.0072, bone: 0.0032, silhouette: 1.25 },
 };
 export const HAND_SIZE_KEY = 'palmful.laptopHandSize';
 function readHandSize(): HandSize {
@@ -129,6 +137,11 @@ const BONES: Array<[number, number]> = [
 const SEED_COLOR: Record<SeedKind, string> = { gold: '#ffc83d', blue: '#4fb4ff', pink: '#ff6fc2' };
 const SEED_LABEL: Record<SeedKind, string> = { gold: 'Gold', blue: 'Blue', pink: 'Pink' };
 const FLOWER_FOR_SEED: Record<SeedKind, FingerName> = { gold: 'middle', blue: 'index', pink: 'ring' };
+/** Extra bones for the laptop's full skeleton: pinky and thumb (indices 14-20). */
+const EXTRA_BONES: Array<[number, number]> = [
+  [1, 14], [14, 15], [15, 16],
+  [0, 17], [17, 18], [18, 19], [19, 20],
+];
 /** Fingertips that grow a flower, in order (both modes). */
 const FLOWER_ORDER: FingerName[] = ['middle', 'index', 'ring'];
 const GRAVITY = v3(0, -9.81, 0);
@@ -198,6 +211,10 @@ declare global {
       hasBackdrop: boolean;
       handSize: () => string;
       restartArmed: () => boolean;
+      /** laptop test aid: freeze at the next catch/miss cue (true), resume (false) */
+      holdCue: (on: boolean) => string;
+      /** laptop view: is the hand silhouette drawn, and the bright bones? */
+      silhouette: () => { silhouette: boolean; bones: boolean };
       twoHands: () => {
         enabled: boolean;
         engaged: string | null;
@@ -232,6 +249,8 @@ export class PalmfulSystem extends createSystem({}) {
   private flowers: Partial<Record<FingerName, Group>> = {};
   private jointDots: Mesh[] = [];
   private boneMeshes: Mesh[] = [];
+  private bonePairs: Array<[number, number]> = [...BONES];
+  private silhouette: HandSilhouette | null = null;
   private tracks: Record<Side, HandTrack> | null = null;
   private eng: Engagement = makeEngagement();
   private flowerSide: Partial<Record<FingerName, Side>> = {};
@@ -273,6 +292,8 @@ export class PalmfulSystem extends createSystem({}) {
   private cup = 0;
   /** catch: green ring bursts outward; miss: red ring shrinks and sinks */
   private flash: { color: string; t: number; x: number; y: number; z: number; grow: boolean } | null = null;
+  /** laptop test aid: freeze the game at the next catch/miss cue (screenshots take ~3 s headless) */
+  private cueHold: 'off' | 'armed' | 'frozen' = 'off';
   private ringY = 0;
 
   private st: CreatureState = makeCreature();
@@ -323,6 +344,13 @@ export class PalmfulSystem extends createSystem({}) {
         this.keys.push({ name: JOINT_NAMES.finger[f][i], get: (j) => j.finger[f][idx] });
       }
     }
+    if (EMULATED_VIEW) {
+      // Extra joints for the laptop hand silhouette only (indices 14-20);
+      // the headset reads exactly the same joints as before.
+      DRAW_JOINT_NAMES.pinky.forEach((name, i) => this.keys.push({ name, get: (j) => j.pinky[i] }));
+      DRAW_JOINT_NAMES.thumb.forEach((name, i) => this.keys.push({ name, get: (j) => j.thumb[i] }));
+      this.bonePairs.push(...EXTRA_BONES);
+    }
     this.filters = this.keys.map(() => new OneEuro3(1.2, 6, 1));
 
     this.root = new Group();
@@ -344,8 +372,9 @@ export class PalmfulSystem extends createSystem({}) {
       const geo = new SphereGeometry(1, 12, 10);
       const mat = new MeshBasicMaterial({
         color: '#f2e6d8',
-        transparent: !EMULATED_VIEW,
-        opacity: EMULATED_VIEW ? 1 : 0.6,
+        transparent: true,
+        // full skeleton: bright; normal laptop play: subtle dots on the silhouette
+        opacity: FULL_SKELETON ? 1 : EMULATED_VIEW ? 0.45 : 0.6,
       });
       for (let i = 0; i < this.keys.length; i++) {
         const m = new Mesh(geo, mat);
@@ -354,10 +383,14 @@ export class PalmfulSystem extends createSystem({}) {
       }
       const boneGeo = new CylinderGeometry(1, 1, 1, 8);
       const boneMat = new MeshBasicMaterial({ color: '#b9a99a' });
-      for (let i = 0; i < BONES.length; i++) {
+      for (let i = 0; i < this.bonePairs.length; i++) {
         const b = new Mesh(boneGeo, boneMat);
         this.boneMeshes.push(b);
         this.root.add(b);
+      }
+      if (EMULATED_VIEW) {
+        this.silhouette = new HandSilhouette();
+        this.root.add(this.silhouette.group);
       }
       if (EMULATED_VIEW) {
         this.handSize = readHandSize();
@@ -404,6 +437,14 @@ export class PalmfulSystem extends createSystem({}) {
       hasBackdrop: this.root.getObjectByName('emulator-backdrop') !== undefined,
       handSize: () => this.handSize,
       restartArmed: () => this.restartArmed,
+      holdCue: (on: boolean) => {
+        if (EMULATED_VIEW) this.cueHold = !on ? 'off' : this.cueHold === 'frozen' ? 'frozen' : 'armed';
+        return this.cueHold;
+      },
+      silhouette: () => ({
+        silhouette: !!(this.silhouette?.group.visible || this.tracks?.left.silhouette?.group.visible),
+        bones: this.boneMeshes.some((b) => b.visible),
+      }),
       twoHands: () => ({
         enabled: TWO_HANDS,
         engaged: this.eng.side,
@@ -465,7 +506,7 @@ export class PalmfulSystem extends createSystem({}) {
       new PlaneGeometry(0.16, 0.16 * aspect),
       new MeshBasicMaterial({ map: this.hintTex, transparent: true, depthTest: false, side: DoubleSide }),
     );
-    this.hint.renderOrder = 10;
+    this.hint.renderOrder = 30; // above the laptop hand silhouette (20-21)
     this.root.add(this.hint);
   }
 
@@ -544,16 +585,19 @@ export class PalmfulSystem extends createSystem({}) {
 
     if (this.tracked && this.frame.normal.y > 0.5) this.metrics.palmUpFrames++;
     if (MODE === 'catch') {
-      this.updateCatch(delta, time);
+      const dt = this.cueHold === 'frozen' ? 0 : delta;
+      this.updateCatch(dt, time);
       this.renderJointDots();
-      this.renderBeaconAndFlowers(time, delta);
-      this.renderHint(delta);
+      this.renderBeaconAndFlowers(time, dt);
+      this.renderHint(dt);
+      if (this.cueHold === 'armed' && this.flash && this.flash.t > FLASH_S * 0.15) this.cueHold = 'frozen';
       const d = window.__palmful!;
       d.tracked = this.tracked;
       d.phase = this.phase;
       d.catch = this.cst;
       d.cup = this.cup;
       d.palmCenter = this.frame.center; // two-hand mode switches frames
+      this.reportFit(delta);
       return;
     }
     this.advancePhase(delta);
@@ -589,6 +633,7 @@ export class PalmfulSystem extends createSystem({}) {
     const dbg = window.__palmful!;
     dbg.tracked = this.tracked;
     dbg.phase = this.phase;
+    this.reportFit(delta);
   }
 
   /**
@@ -675,6 +720,7 @@ export class PalmfulSystem extends createSystem({}) {
         tracked: false,
         dots: reuse ? this.jointDots : [],
         bones: reuse ? this.boneMeshes : [],
+        silhouette: reuse ? this.silhouette : null,
       };
       if (!reuse && SKELETON) {
         const d0 = this.jointDots[0];
@@ -684,10 +730,14 @@ export class PalmfulSystem extends createSystem({}) {
           t.dots.push(m);
           this.root.add(m);
         }
-        for (let i = 0; i < BONES.length; i++) {
+        for (let i = 0; i < this.bonePairs.length; i++) {
           const m = new Mesh(b0.geometry, b0.material);
           t.bones.push(m);
           this.root.add(m);
+        }
+        if (EMULATED_VIEW) {
+          t.silhouette = new HandSilhouette();
+          this.root.add(t.silhouette.group);
         }
       }
       return t;
@@ -737,26 +787,29 @@ export class PalmfulSystem extends createSystem({}) {
   private renderJointDots(): void {
     if (!SKELETON) return;
     if (this.tracks) {
-      for (const t of [this.tracks.right, this.tracks.left]) this.drawSkeleton(t.joints, t.tracked, t.dots, t.bones);
+      for (const t of [this.tracks.right, this.tracks.left]) this.drawSkeleton(t.joints, t.tracked, t.dots, t.bones, t.silhouette);
     } else {
-      this.drawSkeleton(this.joints, this.tracked, this.jointDots, this.boneMeshes);
+      this.drawSkeleton(this.joints, this.tracked, this.jointDots, this.boneMeshes, this.silhouette);
     }
   }
 
-  private drawSkeleton(joints: HandJoints, tracked: boolean, dots: Mesh[], bones: Mesh[]): void {
+  private drawSkeleton(joints: HandJoints, tracked: boolean, dots: Mesh[], bones: Mesh[], sil: HandSilhouette | null): void {
     const size = HAND_SIZES[this.handSize];
+    sil?.update((i) => this.keys[i].get(joints), size.silhouette, tracked);
+    // with the silhouette, joints are small, subtle dots and bones are hidden
+    const subtle = sil !== null && !FULL_SKELETON;
     for (let i = 0; i < dots.length; i++) {
       const p = this.keys[i].get(joints);
       dots[i].position.set(p.x, p.y, p.z);
       dots[i].visible = tracked;
-      dots[i].scale.setScalar(size.joint);
+      dots[i].scale.setScalar(subtle ? size.joint * 0.45 : size.joint);
     }
     for (let n = 0; n < bones.length; n++) {
       const b = bones[n];
-      b.visible = tracked;
-      if (!tracked) continue;
-      const p = this.keys[BONES[n][0]].get(joints);
-      const q = this.keys[BONES[n][1]].get(joints);
+      b.visible = tracked && !subtle;
+      if (!b.visible) continue;
+      const p = this.keys[this.bonePairs[n][0]].get(joints);
+      const q = this.keys[this.bonePairs[n][1]].get(joints);
       this.boneDir.set(q.x - p.x, q.y - p.y, q.z - p.z);
       const len = this.boneDir.length();
       b.position.set((p.x + q.x) / 2, (p.y + q.y) / 2, (p.z + q.z) / 2);
@@ -1050,6 +1103,18 @@ export class PalmfulSystem extends createSystem({}) {
     if (this.seed.visible) add('seed', this.seed.getWorldPosition(new Vector3()));
     if (this.catchSeed?.visible) add('seed', this.catchSeed.getWorldPosition(new Vector3()));
     if (this.hud?.visible) add('hud', this.hud.getWorldPosition(new Vector3()));
+    // panel corners, for "is anything clipped at the window edge?" tests
+    for (const [name, m] of [['hudBox', this.hud], ['hintBox', this.hint]] as const) {
+      if (!m?.visible) continue;
+      const g = m.geometry as PlaneGeometry;
+      const hw = g.parameters.width / 2, hh = g.parameters.height / 2;
+      m.updateMatrixWorld();
+      for (const [cx, cy] of [[-hw, -hh], [hw, -hh], [hw, hh], [-hw, hh]]) {
+        const p = m.localToWorld(new Vector3(cx, cy, 0));
+        p.applyMatrix4(cam.matrixWorldInverse).applyMatrix4(cam.projectionMatrix);
+        (out[name] ??= []).push([(p.x + 1) / 2, (1 - p.y) / 2]); // may be outside 0..1: that is the point
+      }
+    }
     if (this.mote.visible) add('mote', this.mote.getWorldPosition(new Vector3()));
     if (this.ring?.visible) {
       // a point on the ring itself (its right-hand edge)
@@ -1057,6 +1122,71 @@ export class PalmfulSystem extends createSystem({}) {
       add('ring', this.ring.localToWorld(new Vector3(1 - 0.065, 0, 0))); // unit ring, mid-band
     }
     return out;
+  }
+
+  /**
+   * Laptop emulator only: about 4 times a second, measure how far the key
+   * objects (progress display, hint, seed, ring, hand, flowers) reach toward
+   * the edges of the view, and tell the laptop camera ('palmful-fit') so it
+   * can tilt to centre them and zoom just enough that nothing is clipped,
+   * whatever the window size. (Normalised screen box, -1..1 per axis.)
+   */
+  private fitT = 0;
+  private reportFit(dt: number): void {
+    if (!EMULATED_VIEW) return;
+    this.fitT -= dt;
+    if (this.fitT > 0) return;
+    this.fitT = 0.25;
+    const xrCam = this.world.renderer.xr.getCamera() as unknown as { cameras?: PerspectiveCamera[] };
+    const cam = xrCam.cameras?.[0] ?? this.world.camera;
+    cam.updateMatrixWorld();
+    let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
+    let n = 0;
+    const v = this.tmp;
+    const add = (wx: number, wy: number, wz: number) => {
+      v.set(wx, wy, wz).applyMatrix4(cam.matrixWorldInverse);
+      if (v.z > -0.05) return; // behind the camera
+      v.applyMatrix4(cam.projectionMatrix);
+      x0 = Math.min(x0, v.x); x1 = Math.max(x1, v.x);
+      y0 = Math.min(y0, v.y); y1 = Math.max(y1, v.y);
+      n++;
+    };
+    const w = new Vector3();
+    const corners = (m: Mesh) => {
+      if (!m?.visible) return;
+      const g = m.geometry as PlaneGeometry;
+      const hw = g.parameters.width / 2;
+      const hh = g.parameters.height / 2;
+      m.updateMatrixWorld();
+      for (const [cx, cy] of [[-hw, -hh], [hw, -hh], [hw, hh], [-hw, hh]]) {
+        m.localToWorld(w.set(cx, cy, 0));
+        add(w.x, w.y, w.z);
+      }
+    };
+    corners(this.hud);
+    corners(this.hint);
+    if (this.catchSeed?.visible) { this.catchSeed.getWorldPosition(w); add(w.x, w.y, w.z); }
+    if (this.seed.visible) { this.seed.getWorldPosition(w); add(w.x, w.y, w.z); }
+    if (this.ring?.visible) {
+      for (const [x, z] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+        this.ring.localToWorld(w.set(x, z, 0));
+        add(w.x, w.y, w.z);
+      }
+    }
+    const sets = this.tracks ? [this.tracks.right, this.tracks.left] : [{ joints: this.joints, tracked: this.tracked }];
+    for (const t of sets) {
+      if (!t.tracked) continue;
+      for (const k of this.keys) {
+        const p = k.get(t.joints);
+        this.root.localToWorld(w.set(p.x, p.y, p.z));
+        add(w.x, w.y, w.z);
+      }
+    }
+    for (const f of FINGERS) {
+      const g = this.flowers[f];
+      if (g?.visible) { g.getWorldPosition(w); add(w.x, w.y, w.z); }
+    }
+    if (n > 0) window.dispatchEvent(new CustomEvent('palmful-fit', { detail: { x0, x1, y0, y1 } }));
   }
 
   private restart(): void {
@@ -1135,7 +1265,7 @@ export class PalmfulSystem extends createSystem({}) {
       new PlaneGeometry(0.22, 0.22 * (300 / 1024)),
       new MeshBasicMaterial({ map: this.hudTex, transparent: true, depthTest: false, side: DoubleSide }),
     );
-    this.hud.renderOrder = 11;
+    this.hud.renderOrder = 31;
     this.hud.visible = false;
     this.root.add(this.hud);
 
@@ -1310,8 +1440,10 @@ export class PalmfulSystem extends createSystem({}) {
       if (k >= 1) {
         this.flash = null;
       } else if (!showRing) {
-        r.position.set(f.x, f.y - 0.004 - (f.grow ? 0 : k * 0.06), f.z);
-        r.scale.setScalar(this.radius * (f.grow ? 1 + k * 1.5 : Math.max(0.05, 1 - k * 0.8)));
+        // a miss holds full size for the first 40 % so it is easy to see, then shrinks and sinks
+        const km = f.grow ? 0 : Math.max(0, (k - 0.4) / 0.6);
+        r.position.set(f.x, f.y - 0.004 - km * 0.06, f.z);
+        r.scale.setScalar(this.radius * (f.grow ? 1 + k * 1.5 : Math.max(0.05, 1 - km * 0.8)));
         this.ringMat.color.set(f.color);
         this.ringMat.opacity = k < 0.7 ? 1 : (1 - k) / 0.3;
       }

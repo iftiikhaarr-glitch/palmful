@@ -75,9 +75,16 @@ lost, the seed waits for it. A falling seed pauses when the hand under it is
 lost, and goes to the other hand only after 3 s. Each flower stays on the hand
 that caught it. Two-hand play is only on with `&hands=2`.
 
-Add `&debug=1` to any of these for the metrics panel. Laptop mode uses Meta's IWER
-emulator and draws a dark room into the emulated view (only with `?emulate`;
-the real Quest AR view is never covered), with dots and bones in place of a hand.
+**How the laptop view looks.** The emulated hand appears as a soft,
+translucent silhouette (palm, fingers, thumb) with small, faint joint dots. Add
+`&debug=1` for the metrics panel and the full bright skeleton (joints and bones).
+The camera tilts and zooms on its own to keep the progress display, seeds,
+ring and hand inside the window at any window size. In smaller windows the
+help panel starts collapsed (**Show help** or **?**). All of this exists only
+with `?emulate`: on a headset you see your own hand and no backdrop.
+
+Laptop mode uses Meta's IWER emulator and draws a dark room into the emulated
+view (only with `?emulate`; the real Quest AR view is never covered).
 It shows that the game logic works. **Emulator results do not show real-hand
 tracking, cup detection on real hands, comfort, or Quest frame rate.**
 
@@ -100,6 +107,7 @@ node test/catch-e2e.mjs https://localhost:4173/ .   # plays a full catch session
 node test/twohand-e2e.mjs https://localhost:4173/ .   # two-hand catch session
 node test/landing-e2e.mjs https://localhost:4173/ .   # 2D landing; backdrop only with ?emulate
 node test/contrast-check.mjs https://localhost:4173/ .   # laptop view: object contrast >= 3:1
+node test/layout-sizes.mjs https://localhost:4173/ .   # 5 window sizes x both modes: nothing clipped
 npm run dev       # IWSDK dev server + emulator in a managed browser
 ```
 
@@ -113,7 +121,8 @@ src/palm/creature-sim.ts   friction sliding, finger walking, bloom (pure, tested
 src/palm/catch-sim.ts      catch mode: three seeds, landing, cup, miss (pure, tested)
 src/palm/two-hand.ts       optional two-hand rules: which hand catches (pure, tested)
 src/palmful-system.ts      IWSDK system: reads joints, renders, metrics, restart
-src/laptop-emulator.ts     ?emulate=1 laptop mode (IWER + keyboard hand)
+src/laptop-emulator.ts     ?emulate=1 laptop mode (IWER + keyboard hand, view fitting)
+src/hand-silhouette.ts     laptop-only translucent hand silhouette
 src/landing.ts             2D page: Enter AR button, or where to play
 test/                      unit tests + emulator drive scripts
 docs/PROJECT_RECORD.md     decisions, verified facts, open issues, next task

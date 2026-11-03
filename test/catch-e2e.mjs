@@ -143,9 +143,14 @@ try {
   await clickSize('L');
   check('the size buttons do not steal keyboard focus', (await page.evaluate(() => document.activeElement?.tagName)) !== 'BUTTON');
 
+  // Headless screenshots take ~3 s, longer than the 1.5 s cue, so the test
+  // freezes the game at the cue (laptop-only test aid) while it captures.
+  await page.evaluate(() => window.__palmful.holdCue(true));
   await press('C');
   const g = await waitFor('gold caught: progress gold 1/1', (s) => s.seed.caught.gold && s.seed.catches === 1, 15);
+  await page.waitForFunction(() => window.__palmful.holdCue(true) === 'frozen' || false, null, { timeout: 10000 }).catch(() => {});
   await page.screenshot({ path: `${shots}/v2-catch-cue.png` });
+  await page.evaluate(() => window.__palmful.holdCue(false));
   const cueCatch = cuePixels(`${shots}/v2-catch-cue.png`);
   check('catch cue visible (green, no red)', cueCatch.green > 200 && cueCatch.red === 0, JSON.stringify(cueCatch));
   await press('C');
@@ -154,8 +159,11 @@ try {
 
   // Blue: a deliberate miss returns blue and keeps gold
   await waitFor('blue falling', (s) => s.seed.state === 'falling', 30);
+  await page.evaluate(() => window.__palmful.holdCue(true));
   const missed = await waitFor('hand left where it was: blue is missed', (s) => s.seed.state === 'missed', 30);
+  await page.waitForFunction(() => window.__palmful.holdCue(true) === 'frozen' || false, null, { timeout: 10000 }).catch(() => {});
   await page.screenshot({ path: `${shots}/v2-miss-cue.png` });
+  await page.evaluate(() => window.__palmful.holdCue(false));
   const cueMiss = cuePixels(`${shots}/v2-miss-cue.png`);
   check('miss cue visible (red, no green)', cueMiss.red > 200 && cueMiss.green === 0, JSON.stringify(cueMiss));
   check('miss keeps earlier catches', missed.seed.caught.gold && missed.seed.misses === 1);

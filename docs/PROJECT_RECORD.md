@@ -105,6 +105,20 @@ Keep this file current; it is how work continues across sessions.
   3. **Debug `palmCenter`** now follows the active hand in two-hand mode.
   4. **Docs:** stale pointers (README and record pointed to `DEVICE_TEST.md`), superseded catch-v1 facts marked, the laptop replay instructions corrected, and the Quest guide given an accidental-replay check and the hand-outline check.
 
+## Laptop hand readability (3 Nov 2026, branch `hand-silhouette`, on top of `review-fixes`)
+
+- **Laptop only (`?emulate`):**
+  - A soft translucent hand silhouette: palm polygon plus finger and thumb capsules, `src/hand-silhouette.ts`. It is drawn as a depth pre-pass followed by one colour pass, so overlaps don't brighten.
+  - Joints are small, faint dots; bones are hidden. `&debug=1` or `?skeleton=1` shows the full bright skeleton.
+  - Small/Medium/Large now scales the silhouette's thickness too. Positions are unchanged.
+  - Panels render above the silhouette.
+  - Pinky and thumb joints are read only in laptop mode, for drawing. The headset reads the same joints as before.
+- **No clipping:** the game reports the screen box of its key objects (progress display, hint, seed, ring, hand, flowers) about 4 times a second. The laptop camera tilts to centre it and zooms just enough to keep it inside the window. The help panel never exceeds the window height and starts collapsed below 720 px tall or 900 px wide.
+- **Checked:** `test/layout-sizes.mjs` covers 5 window sizes (1920×1080, 1366×768, 1024×640, 820×1100, 700×560) × both modes × opening, a catch or bloom, and completion.
+- **Cost:** the silhouette is one mesh rebuilt each frame (2 draw calls per hand). Headless swiftshader went from about 9.6 to 13.3 fps after merging the parts. This is not a Quest number.
+- **Test aid:** `__palmful.holdCue(true)` (laptop only) freezes the game at the next catch/miss cue so the ~3 s headless screenshot can see the 1.5 s cue. Players never trigger it.
+- **Quest:** unchanged. The real hand and IWSDK's outline are what a player sees; alignment and readability there still need the headset.
+
 ## Not verified (needs a headset): see `docs/QUEST_TEST_GUIDE.md`
 
 ## Open issues
@@ -131,6 +145,6 @@ Same creature, same tilt-and-bloom loop, but Mote rides a small **leaf you hold 
 
 ## Demo-video fallback (if no headset footage)
 
-Emulator footage with `?skeleton=1` (joint dots stand in for the hand), clearly
+Emulator footage (the translucent laptop silhouette stands in for the hand; `?skeleton=1` adds bright joints), clearly
 captioned as emulator footage, plus an honest line in the description. This is
 allowed by the rules but is much weaker than real passthrough footage.

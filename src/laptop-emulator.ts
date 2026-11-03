@@ -40,6 +40,41 @@ export async function installLaptopEmulator(): Promise<void> {
   // hand fills the view. A real Quest 3 view is much wider.
   // Catch mode needs the falling seed and the hand in one view: a bit wider.
   device.fovy = CATCH ? 0.95 : 0.75;
+  // Fit to the window: the game reports the screen box (-1..1) of its key
+  // objects. The camera tilts to centre that box vertically, then zooms just
+  // enough to keep it inside a margin: zoom out before anything is clipped,
+  // back in when there is room. Works for any window shape.
+  const FOVY_MIN = CATCH ? 0.75 : 0.65;
+  const FOVY_MAX = 1.9;
+  let fovy = device.fovy;
+  let pitch0: number | null = null; // camera pitch (degrees), set after Start
+  let fitting = false;
+  window.addEventListener('palmful-fit', async (e) => {
+    if (!started || pitch0 === null || fitting) return;
+    fitting = true;
+    try {
+      const { x0, x1, y0, y1 } = (e as CustomEvent<{ x0: number; x1: number; y0: number; y1: number }>).detail;
+      const cy = (y0 + y1) / 2;
+      if (Math.abs(cy) > 0.06) {
+        // tilt toward the content centre (damped); +y on screen = look up
+        pitch0 += cy * ((fovy * 180) / Math.PI / 2) * 0.6;
+        pitch0 = Math.max(-70, Math.min(10, pitch0));
+        await call('set_transform', { device: 'headset', orientation: { pitch: pitch0, yaw: 0, roll: 0 } });
+      }
+      const reach = Math.max(Math.abs(x0), Math.abs(x1), (y1 - y0) / 2 + Math.abs(cy) * 0.4);
+      let next = fovy;
+      if (reach > 0.86) next = fovy * Math.min(1.12, 1.02 + (reach - 0.86) * 0.8);
+      else if (reach < 0.6) next = fovy * 0.985;
+      next = Math.min(FOVY_MAX, Math.max(FOVY_MIN, next));
+      if (Math.abs(next - fovy) > 1e-4) {
+        fovy = next;
+        device.fovy = fovy;
+      }
+      (window as unknown as { __palmfulFovy?: number }).__palmfulFovy = fovy;
+    } finally {
+      fitting = false;
+    }
+  });
   const remote = (device as unknown as { remote: Remote }).remote;
   (window as unknown as { __palmfulEmu: Remote }).__palmfulEmu = remote;
 
@@ -88,7 +123,9 @@ export async function installLaptopEmulator(): Promise<void> {
     // bottom-left: clear of the seed lanes, progress display and hand
     'position:fixed;left:12px;bottom:12px;z-index:2147483647;' + // above the emulator's full-screen view
     'font:12px/1.4 system-ui,sans-serif;color:#fff4e0;background:rgba(20,16,28,.88);' +
-    'padding:8px 12px;border-radius:12px;max-width:min(260px,calc(100vw - 24px));text-align:left';
+    'padding:8px 12px;border-radius:12px;max-width:min(260px,calc(100vw - 24px));text-align:left;' +
+    // never taller than the window: scroll inside instead of being clipped
+    'max-height:calc(100vh - 24px);overflow-y:auto;box-sizing:border-box';
   panel.innerHTML =
     '<b>Laptop emulator</b>: not a headset test. <button id="laptop-help" style="font:inherit;padding:0 6px;margin-left:4px;border-radius:6px;border:1px solid #6f6779;background:transparent;color:#fff4e0;cursor:pointer">Hide help</button><br>' +
     '<button id="laptop-start" style="margin:8px 0;padding:8px 18px;font:inherit;font-weight:600;border-radius:8px;border:0;background:#ffb35c;color:#221;cursor:pointer">Start</button><br>' +
@@ -118,6 +155,9 @@ export async function installLaptopEmulator(): Promise<void> {
     helpBtn.blur();
   };
   helpBtn.addEventListener('click', toggleHelp);
+  // Smaller windows start with the help collapsed so it never covers the play area
+  // (Show help, or ?, brings it back).
+  if (window.innerHeight < 720 || window.innerWidth < 900) toggleHelp();
   window.addEventListener('keydown', (e) => {
     if (e.key === '?') toggleHelp();
   });
@@ -171,6 +211,8 @@ export async function installLaptopEmulator(): Promise<void> {
     await call('set_transform', { device: 'headset', position: { x: 0.04, y: 1.42, z: -0.05 } });
     await call('look_at', { device: 'headset', target: CATCH ? { x: 0.04, y: 1.27, z: -0.4 } : { x: 0.05, y: 1.14, z: -0.38 } });
     started = true;
+    const head = (await call('get_transform', { device: 'headset' })) as { euler?: { pitch: number } } | undefined;
+    pitch0 = head?.euler?.pitch ?? -25;
     startBtn.style.display = 'none';
     await applyHand();
     status.textContent = 'HAND HIDDEN (Space to raise)';
