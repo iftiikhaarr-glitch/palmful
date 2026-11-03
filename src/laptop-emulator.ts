@@ -7,6 +7,9 @@ const PARAMS = new URLSearchParams(location.search);
 export const EMULATE = PARAMS.has('emulate');
 const CATCH = PARAMS.has('catch');
 const MOVE = 0.02; // metres per key press in catch mode
+/** Same key as palmful-system.ts: the laptop-only hand display size. */
+const HAND_SIZE_KEY = 'palmful.laptopHandSize';
+const SEEDS = ['gold', 'blue', 'pink'] as const;
 
 type Remote = { dispatch(method: string, params?: Record<string, unknown>): Promise<unknown> };
 
@@ -35,7 +38,7 @@ export async function installLaptopEmulator(): Promise<void> {
   // A laptop screen is small: narrow the emulated vertical FOV (~43°) so the
   // hand fills the view. A real Quest 3 view is much wider.
   // Catch mode needs the falling seed and the hand in one view: a bit wider.
-  device.fovy = CATCH ? 1.1 : 0.75;
+  device.fovy = CATCH ? 0.95 : 0.75;
   const remote = (device as unknown as { remote: Remote }).remote;
   (window as unknown as { __palmfulEmu: Remote }).__palmfulEmu = remote;
 
@@ -71,21 +74,72 @@ export async function installLaptopEmulator(): Promise<void> {
   const panel = document.createElement('div');
   panel.id = 'laptop-panel';
   panel.style.cssText =
-    'position:fixed;right:16px;top:16px;z-index:10;' +
-    'font:13px/1.45 system-ui,sans-serif;color:#fff4e0;background:rgba(20,16,28,.85);' +
-    'padding:10px 14px;border-radius:12px;max-width:min(270px,calc(100vw - 32px));text-align:left;opacity:.92';
+    // bottom-left: clear of the seed lanes, progress display and hand
+    'position:fixed;left:12px;bottom:12px;z-index:2147483647;' + // above the emulator's full-screen view
+    'font:12px/1.4 system-ui,sans-serif;color:#fff4e0;background:rgba(20,16,28,.88);' +
+    'padding:8px 12px;border-radius:12px;max-width:min(260px,calc(100vw - 24px));text-align:left';
   panel.innerHTML =
-    '<b>Laptop emulator</b>: not a headset test.<br>' +
+    '<b>Laptop emulator</b>: not a headset test. <button id="laptop-help" style="font:inherit;padding:0 6px;margin-left:4px;border-radius:6px;border:1px solid #6f6779;background:transparent;color:#fff4e0;cursor:pointer">Hide help</button><br>' +
     '<button id="laptop-start" style="margin:8px 0;padding:8px 18px;font:inherit;font-weight:600;border-radius:8px;border:0;background:#ffb35c;color:#221;cursor:pointer">Start</button><br>' +
+    '<div id="laptop-help-body">' +
     (CATCH
       ? '<b>Catch mode</b>: catch the falling seed.<br>' +
-        '<span><b>Space</b> raise hand, palm up (again: back to start)<br><b>← →</b> move hand left / right<br><b>↑ ↓</b> move hand forward / back<br><b>W S</b> move hand up / down<br><b>C</b> cup / open the hand<br><b>T</b> tip palm sideways (spill) &nbsp; <b>F</b> fist &nbsp; <b>H</b> lower hand<br>' +
+        '<span><b>Space</b> raise hand, palm up (again: back to start)<br><b>← →</b> move hand left / right<br><b>↑ ↓</b> move hand forward / back<br><b>W S</b> move hand up / down<br><b>C</b> cup / open the hand<br><b>1 2 3</b> test: pick gold / blue / pink seed<br><b>T</b> tip palm sideways (spill) &nbsp; <b>F</b> fist &nbsp; <b>H</b> lower hand<br>' +
         'Move under the seed (ring turns green), let it land, then press <b>C</b>.</span><br>'
       : '<span><b>Space</b> raise hand, palm up (again: level it)<br><b>↑ ↓</b> tip fingertips down / up<br><b>← →</b> roll toward pinky / index<br><b>F</b> fist &nbsp; <b>H</b> lower hand</span><br>') +
+    '<b>?</b> hide / show this help<br></div>' +
+    '<div style="margin:6px 0 2px">Hand display: ' +
+    ['S', 'M', 'L']
+      .map((z) => `<button data-size="${z}" class="laptop-size" style="font:inherit;font-weight:600;padding:2px 10px;margin-left:4px;border-radius:6px;border:1px solid #ffb35c;cursor:pointer">${z === 'S' ? 'Small' : z === 'M' ? 'Medium' : 'Large'}</button>`)
+      .join('') +
+    '</div>' +
     '<code id="laptop-status" style="opacity:.8"></code>';
   document.body.appendChild(panel);
   const status = panel.querySelector('#laptop-status') as HTMLElement;
   const startBtn = panel.querySelector('#laptop-start') as HTMLButtonElement;
+  const helpBody = panel.querySelector('#laptop-help-body') as HTMLElement;
+  const helpBtn = panel.querySelector('#laptop-help') as HTMLButtonElement;
+  const toggleHelp = () => {
+    const hide = helpBody.style.display !== 'none';
+    helpBody.style.display = hide ? 'none' : '';
+    helpBtn.textContent = hide ? 'Show help' : 'Hide help';
+    helpBtn.blur();
+  };
+  helpBtn.addEventListener('click', toggleHelp);
+  window.addEventListener('keydown', (e) => {
+    if (e.key === '?') toggleHelp();
+  });
+
+  // Hand display size (laptop only): thicker dots and bones, same positions.
+  let size = 'M';
+  try {
+    const v = localStorage.getItem(HAND_SIZE_KEY);
+    if (v === 'S' || v === 'M' || v === 'L') size = v;
+  } catch {
+    /* storage unavailable: use the default */
+  }
+  const sizeButtons = [...panel.querySelectorAll<HTMLButtonElement>('.laptop-size')];
+  const showSize = () =>
+    sizeButtons.forEach((b) => {
+      const on = b.dataset.size === size;
+      b.style.background = on ? '#ffb35c' : 'transparent';
+      b.style.color = on ? '#221' : '#fff4e0';
+      b.setAttribute('aria-pressed', String(on));
+    });
+  showSize();
+  sizeButtons.forEach((b) =>
+    b.addEventListener('click', () => {
+      size = b.dataset.size!;
+      try {
+        localStorage.setItem(HAND_SIZE_KEY, size);
+      } catch {
+        /* not saved; still applies for this visit */
+      }
+      window.dispatchEvent(new CustomEvent('palmful-handsize', { detail: size }));
+      showSize();
+      b.blur(); // keep keyboard control on the game
+    }),
+  );
 
   startBtn.addEventListener('click', async () => {
     startBtn.disabled = true;
@@ -103,7 +157,7 @@ export async function installLaptopEmulator(): Promise<void> {
     hidden = true;
     await call('set_hand_pose', { device: 'hand-right', poseId: 'flat' });
     await call('set_transform', { device: 'headset', position: { x: 0.04, y: 1.42, z: -0.05 } });
-    await call('look_at', { device: 'headset', target: CATCH ? { x: 0.04, y: 1.27, z: -0.38 } : { x: 0.05, y: 1.14, z: -0.38 } });
+    await call('look_at', { device: 'headset', target: CATCH ? { x: 0.04, y: 1.27, z: -0.4 } : { x: 0.05, y: 1.14, z: -0.38 } });
     started = true;
     startBtn.style.display = 'none';
     await applyHand();
@@ -145,6 +199,17 @@ export async function installLaptopEmulator(): Promise<void> {
         case 'T':
           roll = roll ? 0 : 85;
           break;
+        case '1':
+        case '2':
+        case '3': {
+          // testing aid: choose which (uncaught) seed falls next
+          const kind = SEEDS[Number(e.key) - 1];
+          const sel = (window as unknown as { __palmfulSelectSeed?: (k: string) => boolean }).__palmfulSelectSeed;
+          const okSel = sel ? sel(kind) : false;
+          status.textContent = okSel ? `${kind} seed selected` : `${kind}: already caught or busy`;
+          e.preventDefault();
+          return;
+        }
         case ' ':
           off.x = off.y = off.z = 0;
           roll = 0;

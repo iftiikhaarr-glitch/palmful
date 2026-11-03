@@ -20,11 +20,9 @@ import {
   PerspectiveCamera,
   PlaneGeometry,
   AdditiveBlending,
+  ConeGeometry,
+  OctahedronGeometry,
   BackSide,
-  BufferAttribute,
-  BufferGeometry,
-  LineBasicMaterial,
-  LineSegments,
   RingGeometry,
   SphereGeometry,
   Vector3,
@@ -53,15 +51,21 @@ import {
 } from './palm/hand-frame.js';
 import {
   CATCH_RADIUS,
-  type CatchEvent,
+  CATCHES_TO_WIN,
   type CatchState,
+  catchRadiusForPalm,
   CAUGHT_S,
-  chooseSpawn,
   CUP_HOLD,
   CUP_ON,
+  laneSpawn,
   MISSED_S,
   makeCatch,
   PALM_UP_MIN,
+  resetCatch,
+  SEED_KINDS,
+  type SeedKind,
+  selectKind,
+  type SpawnFor,
   stepCatch,
 } from './palm/catch-sim.js';
 import { type Vec3, v3 } from './palm/math.js';
@@ -77,6 +81,27 @@ const EMULATED_VIEW = PARAMS.has('emulate');
 /** Cue colours, chosen to stay distinct on dark backgrounds and in passthrough. */
 const CUE = { ready: '#2bff6e', waiting: '#ffb020', miss: '#ff3b3b' };
 const FLASH_S = 1.5;
+/**
+ * Laptop emulator display size for the drawn hand (Small / Medium / Large).
+ * Purely visual: dot and bone thickness. It never changes joint positions,
+ * the catch area, or anything on a Quest. Saved in this browser only.
+ */
+export type HandSize = 'S' | 'M' | 'L';
+const HAND_SIZES: Record<HandSize, { joint: number; bone: number }> = {
+  S: { joint: 0.0035, bone: 0.0012 },
+  M: { joint: 0.005, bone: 0.002 },
+  L: { joint: 0.0072, bone: 0.0032 },
+};
+export const HAND_SIZE_KEY = 'palmful.laptopHandSize';
+function readHandSize(): HandSize {
+  try {
+    const v = localStorage.getItem(HAND_SIZE_KEY);
+    return v === 'S' || v === 'M' || v === 'L' ? v : 'M';
+  } catch {
+    return 'M';
+  }
+}
+const UP = new Vector3(0, 1, 0);
 /** Joint pairs drawn as bones in the laptop view (indices into this.keys). */
 // keys: 0 wrist, 1 pinky knuckle, 2-5 index, 6-9 middle, 10-13 ring
 const BONES: Array<[number, number]> = [
@@ -86,6 +111,10 @@ const BONES: Array<[number, number]> = [
   [10, 11], [11, 12], [12, 13],
   [2, 6], [6, 10], [10, 1],
 ];
+/** Catch mode: seed colours, labels, and which fingertip each one blooms. */
+const SEED_COLOR: Record<SeedKind, string> = { gold: '#ffc83d', blue: '#4fb4ff', pink: '#ff6fc2' };
+const SEED_LABEL: Record<SeedKind, string> = { gold: 'Gold', blue: 'Blue', pink: 'Pink' };
+const FLOWER_FOR_SEED: Record<SeedKind, FingerName> = { gold: 'middle', blue: 'index', pink: 'ring' };
 /** Fingertips that grow a flower, in order (both modes). */
 const FLOWER_ORDER: FingerName[] = ['middle', 'index', 'ring'];
 const GRAVITY = v3(0, -9.81, 0);
@@ -153,6 +182,7 @@ declare global {
       layout: () => LayoutReport;
       /** true only in the laptop emulator: a dark room is drawn into the XR view */
       hasBackdrop: boolean;
+      handSize: () => string;
       /** screen positions (0..1, top-left origin) of key objects, for contrast tests */
       screenPoints: () => Record<string, Array<[number, number]>>;
     };
@@ -178,7 +208,9 @@ export class PalmfulSystem extends createSystem({}) {
   private hintText = '';
   private flowers: Partial<Record<FingerName, Group>> = {};
   private jointDots: Mesh[] = [];
-  private bones: LineSegments | null = null;
+  private boneMeshes: Mesh[] = [];
+  private handSize: HandSize = 'S';
+  private boneDir = new Vector3();
   private seed!: Mesh;
   private seedFrom = new Vector3();
   private trail: Mesh[] = [];
@@ -195,12 +227,21 @@ export class PalmfulSystem extends createSystem({}) {
   private ring!: Mesh;
   private ringMat!: MeshBasicMaterial;
   private halo!: Mesh;
-  private nextSpawn = v3();
   private headV = v3();
+  private fwdX = 0;
+  private fwdZ = -1;
+  private radius = CATCH_RADIUS;
+  private catchSeed!: Group;
+  private seedShapes!: Record<SeedKind, Mesh>;
+  private hud!: Mesh;
+  private hudCanvas!: HTMLCanvasElement;
+  private hudTex!: CanvasTexture;
+  private hudKey = '';
+  private hudAnchor = v3();
+  private hudPos = v3();
   private cup = 0;
   /** catch: green ring bursts outward; miss: red ring shrinks and sinks */
   private flash: { color: string; t: number; x: number; y: number; z: number; grow: boolean } | null = null;
-  private lastEvent: CatchEvent = 'none';
   private ringY = 0;
 
   private st: CreatureState = makeCreature();
@@ -266,7 +307,10 @@ export class PalmfulSystem extends createSystem({}) {
     this.buildBeacon();
     this.buildHint();
     if (SKELETON) {
-      const geo = new SphereGeometry(EMULATED_VIEW ? 0.0045 : 0.004, 10, 8);
+      // Joints (unit spheres) and bones (unit cylinders) are scaled per frame:
+      // their POSITIONS always come from the tracked joints, so changing the
+      // laptop display size never moves them relative to the ring or seed.
+      const geo = new SphereGeometry(1, 12, 10);
       const mat = new MeshBasicMaterial({
         color: '#f2e6d8',
         transparent: !EMULATED_VIEW,
@@ -277,12 +321,21 @@ export class PalmfulSystem extends createSystem({}) {
         this.jointDots.push(m);
         this.root.add(m);
       }
-      this.bones = new LineSegments(
-        new BufferGeometry().setAttribute('position', new BufferAttribute(new Float32Array(BONES.length * 6), 3)),
-        new LineBasicMaterial({ color: '#b9a99a', transparent: true, opacity: 0.85 }),
-      );
-      this.bones.frustumCulled = false;
-      this.root.add(this.bones);
+      const boneGeo = new CylinderGeometry(1, 1, 1, 8);
+      const boneMat = new MeshBasicMaterial({ color: '#b9a99a' });
+      for (let i = 0; i < BONES.length; i++) {
+        const b = new Mesh(boneGeo, boneMat);
+        this.boneMeshes.push(b);
+        this.root.add(b);
+      }
+      if (EMULATED_VIEW) {
+        this.handSize = readHandSize();
+        const onSize = (e: Event) => {
+          this.handSize = (e as CustomEvent<HandSize>).detail;
+        };
+        window.addEventListener('palmful-handsize', onSize);
+        this.cleanupFuncs.push(() => window.removeEventListener('palmful-handsize', onSize));
+      }
     }
     if (EMULATED_VIEW) this.buildEmulatorBackdrop();
     this.root.visible = false;
@@ -317,6 +370,7 @@ export class PalmfulSystem extends createSystem({}) {
       hint: '',
       layout: () => this.layoutCheck(),
       hasBackdrop: this.root.getObjectByName('emulator-backdrop') !== undefined,
+      handSize: () => this.handSize,
       screenPoints: () => this.screenPoints(),
     };
   }
@@ -371,6 +425,11 @@ export class PalmfulSystem extends createSystem({}) {
     this.root.add(this.hint);
   }
 
+  private petalColor(f: FingerName): string {
+    if (MODE === 'catch') for (const k of SEED_KINDS) if (FLOWER_FOR_SEED[k] === f) return SEED_COLOR[k];
+    return PETAL_COLORS[f];
+  }
+
   private makeFlower(finger: FingerName): Group {
     const g = new Group();
     const stem = new Mesh(
@@ -381,8 +440,8 @@ export class PalmfulSystem extends createSystem({}) {
     g.add(stem);
     const petalGeo = new SphereGeometry(0.0042, 12, 8);
     const petalMat = new MeshStandardMaterial({
-      color: PETAL_COLORS[finger],
-      emissive: PETAL_COLORS[finger],
+      color: this.petalColor(finger),
+      emissive: this.petalColor(finger),
       emissiveIntensity: 0.25,
     });
     for (let i = 0; i < 5; i++) {
@@ -558,16 +617,19 @@ export class PalmfulSystem extends createSystem({}) {
       this.jointDots[i].position.set(p.x, p.y, p.z);
       this.jointDots[i].visible = this.tracked;
     }
-    if (this.bones) {
-      this.bones.visible = this.tracked;
-      const attr = this.bones.geometry.getAttribute('position') as BufferAttribute;
-      const a = attr.array as Float32Array;
-      BONES.forEach(([i, j], n) => {
-        const p = this.keys[i].get(this.joints);
-        const q = this.keys[j].get(this.joints);
-        a.set([p.x, p.y, p.z, q.x, q.y, q.z], n * 6);
-      });
-      attr.needsUpdate = true;
+    const size = HAND_SIZES[this.handSize];
+    for (const d of this.jointDots) d.scale.setScalar(size.joint);
+    for (let n = 0; n < this.boneMeshes.length; n++) {
+      const b = this.boneMeshes[n];
+      b.visible = this.tracked;
+      if (!b.visible) continue;
+      const p = this.keys[BONES[n][0]].get(this.joints);
+      const q = this.keys[BONES[n][1]].get(this.joints);
+      this.boneDir.set(q.x - p.x, q.y - p.y, q.z - p.z);
+      const len = this.boneDir.length();
+      b.position.set((p.x + q.x) / 2, (p.y + q.y) / 2, (p.z + q.z) / 2);
+      if (len > 1e-6) b.quaternion.setFromUnitVectors(UP, this.boneDir.multiplyScalar(1 / len));
+      b.scale.set(size.bone, Math.max(len, 1e-4), size.bone);
     }
   }
 
@@ -795,19 +857,21 @@ export class PalmfulSystem extends createSystem({}) {
 
   /** Project panel corners and hand/Mote/flower points to the screen; count overlaps. */
   private layoutCheck(): LayoutReport {
+    // In catch mode the completion message lives on the progress display.
+    const panel = MODE === 'catch' && this.phase === 'done' ? this.hud : this.hint;
     const xrCam = this.world.renderer.xr.getCamera() as unknown as { cameras?: PerspectiveCamera[] };
     const cam = xrCam.cameras?.[0] ?? this.world.camera;
     cam.updateMatrixWorld();
     const proj = (v: Vector3) => v.applyMatrix4(cam.matrixWorldInverse).applyMatrix4(cam.projectionMatrix);
-    const report: LayoutReport = { panelVisible: this.hint.visible, overlaps: 0, checked: 0 };
-    if (!this.hint.visible) return report;
-    this.hint.updateMatrixWorld();
-    const geo = this.hint.geometry as PlaneGeometry;
+    const report: LayoutReport = { panelVisible: panel.visible, overlaps: 0, checked: 0 };
+    if (!panel.visible) return report;
+    panel.updateMatrixWorld();
+    const geo = panel.geometry as PlaneGeometry;
     const w = geo.parameters.width / 2;
     const h = geo.parameters.height / 2;
     let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
     for (const [cx, cy] of [[-w, -h], [w, -h], [w, h], [-w, h]]) {
-      const v = proj(this.hint.localToWorld(new Vector3(cx, cy, 0)));
+      const v = proj(panel.localToWorld(new Vector3(cx, cy, 0)));
       x0 = Math.min(x0, v.x); x1 = Math.max(x1, v.x); y0 = Math.min(y0, v.y); y1 = Math.max(y1, v.y);
     }
     const pts: Vector3[] = [];
@@ -845,11 +909,13 @@ export class PalmfulSystem extends createSystem({}) {
       }
     }
     if (this.seed.visible) add('seed', this.seed.getWorldPosition(new Vector3()));
+    if (this.catchSeed?.visible) add('seed', this.catchSeed.getWorldPosition(new Vector3()));
+    if (this.hud?.visible) add('hud', this.hud.getWorldPosition(new Vector3()));
     if (this.mote.visible) add('mote', this.mote.getWorldPosition(new Vector3()));
     if (this.ring?.visible) {
       // a point on the ring itself (its right-hand edge)
       this.ring.updateMatrixWorld();
-      add('ring', this.ring.localToWorld(new Vector3(CATCH_RADIUS - 0.0045, 0, 0)));
+      add('ring', this.ring.localToWorld(new Vector3(1 - 0.065, 0, 0))); // unit ring, mid-band
     }
     return out;
   }
@@ -877,19 +943,37 @@ export class PalmfulSystem extends createSystem({}) {
     this.mote.visible = false;
     this.shadow.visible = false;
     this.beacon.visible = false;
+    this.seed.visible = false;
     for (const d of this.trail) d.visible = false;
-    // The falling seed glows: a soft halo around the existing seed mesh.
-    const seedMat = this.seed.material as MeshStandardMaterial;
-    seedMat.color.set('#ffd27a');
-    seedMat.emissive.set('#ffb347');
-    seedMat.emissiveIntensity = 0.9;
+
+    // Three seeds: different colour AND shape (sphere, diamond, cone/triangle),
+    // so they read without colour vision. One group, one visible shape.
+    this.catchSeed = new Group();
+    const shapes: Record<SeedKind, Mesh> = {
+      gold: new Mesh(new SphereGeometry(0.0085, 24, 16)),
+      blue: new Mesh(new OctahedronGeometry(0.011)),
+      pink: new Mesh(new ConeGeometry(0.0095, 0.018, 3)),
+    };
+    for (const k of SEED_KINDS) {
+      shapes[k].material = new MeshStandardMaterial({
+        color: SEED_COLOR[k],
+        emissive: SEED_COLOR[k],
+        emissiveIntensity: 0.85,
+        roughness: 0.4,
+        flatShading: k !== 'gold',
+      });
+      this.catchSeed.add(shapes[k]);
+    }
+    this.seedShapes = shapes;
     this.halo = new Mesh(
-      new SphereGeometry(0.016, 20, 14),
-      new MeshBasicMaterial({ color: '#ffd27a', transparent: true, opacity: 0.25, depthWrite: false, blending: AdditiveBlending }),
+      new SphereGeometry(0.018, 20, 14),
+      new MeshBasicMaterial({ color: '#ffffff', transparent: true, opacity: 0.25, depthWrite: false, blending: AdditiveBlending }),
     );
-    this.seed.add(this.halo);
-    // Landing ring: shows where the seed will come down, drawn at the height
-    // of your palm and exactly the size of the catch area.
+    this.catchSeed.add(this.halo);
+    this.root.add(this.catchSeed);
+
+    // Landing ring: where the seed will come down, at palm height, exactly the
+    // size of the catch area (scaled per frame to the measured palm).
     this.ringMat = new MeshBasicMaterial({
       color: CUE.waiting,
       transparent: true,
@@ -898,47 +982,73 @@ export class PalmfulSystem extends createSystem({}) {
       side: DoubleSide,
       depthWrite: false,
     });
-    this.ring = new Mesh(new RingGeometry(CATCH_RADIUS - 0.009, CATCH_RADIUS, 64), this.ringMat);
+    this.ring = new Mesh(new RingGeometry(1 - 0.13, 1, 64), this.ringMat); // unit ring, scaled to the radius
     this.ring.rotation.x = -Math.PI / 2;
     this.ring.visible = false;
     this.root.add(this.ring);
+
+    // Progress display (and, at the end, the completion card).
+    this.hudCanvas = document.createElement('canvas');
+    this.hudCanvas.width = 1024;
+    this.hudCanvas.height = 300;
+    this.hudTex = new CanvasTexture(this.hudCanvas);
+    this.hud = new Mesh(
+      new PlaneGeometry(0.22, 0.22 * (300 / 1024)),
+      new MeshBasicMaterial({ map: this.hudTex, transparent: true, depthTest: false, side: DoubleSide }),
+    );
+    this.hud.renderOrder = 11;
+    this.hud.visible = false;
+    this.root.add(this.hud);
+
+    if (EMULATED_VIEW) {
+      // Laptop testing aid only (keys 1/2/3); never reachable on a headset.
+      (window as unknown as { __palmfulSelectSeed?: (k: SeedKind) => boolean }).__palmfulSelectSeed = (k) =>
+        this.cst ? selectKind(this.cst, k, this.spawnFor) : false;
+    }
   }
 
-  private computeSpawn(roundOffset = 1, out: Vec3 = this.nextSpawn): void {
+  /** Head pose in root space and its horizontal forward direction. */
+  private updateHeadPose(): void {
     this.player.head.getWorldPosition(this.head);
     this.root.worldToLocal(this.head);
     this.player.head.getWorldDirection(this.tmp); // points backwards (camera -Z)
     this.headV.x = this.head.x;
     this.headV.y = this.head.y;
     this.headV.z = this.head.z;
-    const round = this.cst ? this.cst.round + roundOffset : 0;
-    chooseSpawn(this.headV, -this.tmp.x, -this.tmp.z, this.tracked ? this.frame.center : null, round, out);
+    this.fwdX = -this.tmp.x;
+    this.fwdZ = -this.tmp.z;
   }
 
+  private spawnFor: SpawnFor = (kind, out) => laneSpawn(kind, this.headV, this.fwdX, this.fwdZ, out);
+
   private updateCatch(dt: number, time: number): void {
-    this.computeSpawn();
-    if (!this.cst) this.cst = makeCatch(this.nextSpawn);
+    this.updateHeadPose();
+    if (!this.cst) {
+      this.cst = makeCatch(this.spawnFor);
+      window.__palmful!.catch = this.cst;
+    }
     const cst = this.cst;
-    // Until a palm is first offered, keep the waiting seed in front of the
-    // current view (the head pose on the very first frames is not settled).
+    // Until a palm is first offered, keep the waiting seed (and the progress
+    // display) in front of the current view; the first head poses are unsettled.
     if (this.phase === 'await' && cst.seed === 'waiting') {
-      this.computeSpawn(0, cst.spawn);
+      this.spawnFor(cst.kind, cst.spawn);
       cst.pos.x = cst.spawn.x;
       cst.pos.y = cst.spawn.y;
       cst.pos.z = cst.spawn.z;
-      this.computeSpawn();
     }
     this.cup = this.tracked ? cupAmount(this.joints, this.frame) : 0;
+    // Catch area from the measured palm (smoothed); see CATCH_TOLERANCE.
+    if (this.tracked) this.radius += (catchRadiusForPalm(this.frame.halfWidth * 2) - this.radius) * Math.min(1, dt * 4);
 
     if (this.phase === 'await' && this.tracked && this.frame.normal.y >= PALM_UP_MIN) this.setPhase('play');
     else this.phaseT += dt;
 
-    // Session over: a fist held briefly replays.
+    // Session over: a fist held briefly replays, resetting every count.
     if (this.phase === 'done' && this.tracked && fingertipReach(this.joints) < FIST_REACH) {
       this.fistT += dt;
       if (this.fistT > 0.8) {
         this.clearFlowers();
-        Object.assign(cst, makeCatch(this.nextSpawn));
+        resetCatch(cst, this.spawnFor);
         this.fistT = 0;
         this.metrics.restarts++;
         this.setPhase('play');
@@ -947,19 +1057,19 @@ export class PalmfulSystem extends createSystem({}) {
       this.fistT = 0;
     }
 
+    const kindBefore = cst.kind;
     const ev = stepCatch(
       cst,
-      { tracked: this.tracked, center: this.frame.center, normal: this.frame.normal, cup: this.cup, nextSpawn: this.nextSpawn },
+      { tracked: this.tracked, center: this.frame.center, normal: this.frame.normal, cup: this.cup, radius: this.radius, spawnFor: this.spawnFor },
       dt,
     );
-    if (ev !== 'none') this.lastEvent = ev;
     switch (ev) {
       case 'land':
         this.chime('land');
         break;
       case 'catch':
-        this.growFlower(FLOWER_ORDER[(cst.catches - 1) % 3]);
-        this.chime(cst.catches >= 3 ? 'final' : 'bloom');
+        this.growFlower(FLOWER_FOR_SEED[kindBefore]);
+        this.chime(cst.catches >= CATCHES_TO_WIN ? 'final' : 'bloom');
         this.flash = { color: CUE.ready, t: 0, x: cst.pos.x, y: cst.pos.y, z: cst.pos.z, grow: true };
         if (this.metrics.firstBloomS === null) this.metrics.firstBloomS = this.metrics.sessionS;
         break;
@@ -980,37 +1090,39 @@ export class PalmfulSystem extends createSystem({}) {
         break;
     }
     this.renderCatchSeed(time, dt);
+    this.renderHud();
   }
 
   private renderCatchSeed(time: number, dt: number): void {
     const cst = this.cst!;
-    const s = this.seed;
-    const mat = s.material as MeshStandardMaterial;
-    s.position.set(cst.pos.x, cst.pos.y, cst.pos.z);
-    s.rotation.y = time * 1.5;
-    s.visible = cst.seed !== 'done';
+    const g = this.catchSeed;
+    g.position.set(cst.pos.x, cst.pos.y, cst.pos.z);
+    g.rotation.y = time * 1.2;
+    g.visible = cst.seed !== 'done';
+    for (const k of SEED_KINDS) this.seedShapes[k].visible = k === cst.kind;
+    const mat = this.seedShapes[cst.kind].material as MeshStandardMaterial;
+    mat.emissive.set(SEED_COLOR[cst.kind]);
     let scale = 1;
-    let haloOpacity = 0.25 + Math.sin(time * 4) * 0.08;
-    mat.emissive.set('#ffb347');
+    let haloOpacity = 0.22 + Math.sin(time * 4) * 0.06;
     if (cst.seed === 'waiting') {
       // telegraph: pulses brighter before it starts to fall
       scale = 1 + Math.max(0, Math.sin(time * 6)) * 0.25;
-      haloOpacity = 0.45;
+      haloOpacity = 0.4;
     } else if (cst.seed === 'resting') {
-      // ready to be cupped: slow, warm pulse; tighter as the cup closes
+      // ready to be cupped: slow pulse; tighter as the cup closes
       scale = 1 + Math.sin(time * 3) * 0.08 - Math.min(1, cst.cupT / CUP_HOLD) * 0.2;
     } else if (cst.seed === 'caught') {
-      // shrinks into the hand as the flower grows
-      scale = Math.max(0.001, 1 - cst.t / (CAUGHT_S * 0.5));
+      scale = Math.max(0.001, 1 - cst.t / (CAUGHT_S * 0.5)); // shrinks into the hand
     } else if (cst.seed === 'missed') {
-      // fades out red, then comes back from above
-      const k = Math.min(1, cst.t / MISSED_S);
-      mat.emissive.set('#ff5a5a');
+      const k = Math.min(1, cst.t / MISSED_S); // fades out red, then the same seed returns
+      mat.emissive.set(CUE.miss);
       scale = Math.max(0.001, 1 - k);
       haloOpacity = 0.3 * (1 - k);
     }
-    s.scale.set(scale, scale * 1.25, scale);
-    (this.halo.material as MeshBasicMaterial).opacity = Math.max(0, haloOpacity);
+    g.scale.setScalar(scale);
+    const haloMat = this.halo.material as MeshBasicMaterial;
+    haloMat.color.set(SEED_COLOR[cst.kind]);
+    haloMat.opacity = Math.max(0, haloOpacity);
 
     // Landing ring under the seed at palm height; green when the palm is in place.
     const r = this.ring;
@@ -1020,28 +1132,123 @@ export class PalmfulSystem extends createSystem({}) {
       const y = this.tracked ? this.frame.center.y : cst.pos.y - 0.25;
       this.ringY = y;
       r.position.set(cst.pos.x, y, cst.pos.z);
-      r.scale.setScalar(1);
-      const dx = cst.pos.x - this.frame.center.x;
-      const dz = cst.pos.z - this.frame.center.z;
-      const ready = this.tracked && this.frame.normal.y >= PALM_UP_MIN && Math.hypot(dx, dz) <= CATCH_RADIUS;
+      r.scale.setScalar(this.radius);
+      const ready =
+        this.tracked &&
+        this.frame.normal.y >= PALM_UP_MIN &&
+        Math.hypot(cst.pos.x - this.frame.center.x, cst.pos.z - this.frame.center.z) <= this.radius;
       this.ringMat.color.set(ready ? CUE.ready : CUE.waiting);
       this.ringMat.opacity = ready ? 1 : 0.85;
     }
     if (this.flash) {
-      // catch (green) or miss (red): the ring bursts outward and fades
+      // catch (green) bursts outward; miss (red) shrinks and sinks
       const f = this.flash;
       f.t += dt;
       const k = f.t / FLASH_S;
       if (k >= 1) {
         this.flash = null;
       } else if (!showRing) {
-        // shape differs as well as colour, so the cue reads without colour vision
         r.position.set(f.x, f.y - 0.004 - (f.grow ? 0 : k * 0.06), f.z);
-        r.scale.setScalar(f.grow ? 1 + k * 1.5 : Math.max(0.05, 1 - k * 0.8));
+        r.scale.setScalar(this.radius * (f.grow ? 1 + k * 1.5 : Math.max(0.05, 1 - k * 0.8)));
         this.ringMat.color.set(f.color);
-        // full strength for most of the cue, fading only at the end
         this.ringMat.opacity = k < 0.7 ? 1 : (1 - k) / 0.3;
       }
+    }
+  }
+
+  /**
+   * Progress display: "Gold 0/1 · Blue 0/1 · Pink 0/1", centred above the seed
+   * lanes (about 10 cm above where seeds appear, slightly below eye level), so
+   * seeds, progress and hand share one comfortable view. At the end it becomes
+   * the completion card.
+   */
+  private renderHud(): void {
+    const cst = this.cst!;
+    const done = this.phase === 'done';
+    this.hud.visible = true;
+    // anchor: the centre lane, updated with each new seed (not head-locked)
+    laneSpawn('pink', this.headV, this.fwdX, this.fwdZ, this.hudAnchor);
+    if (this.phase === 'await' || cst.seed === 'waiting' || done) {
+      this.hudPos.x = this.hudAnchor.x;
+      this.hudPos.y = this.hudAnchor.y + 0.1;
+      this.hudPos.z = this.hudAnchor.z;
+    }
+    this.hud.position.set(this.hudPos.x, this.hudPos.y, this.hudPos.z);
+    this.hud.lookAt(this.head);
+    const key = `${done}|${this.fistT > 0}|${cst.kind}|${SEED_KINDS.map((k) => (cst.caught[k] ? 1 : 0)).join('')}`;
+    if (key === this.hudKey) return;
+    this.hudKey = key;
+
+    const cv = this.hudCanvas;
+    const c = cv.getContext('2d')!;
+    c.clearRect(0, 0, cv.width, cv.height);
+    c.fillStyle = 'rgba(16,13,24,0.86)';
+    c.beginPath();
+    c.roundRect(6, 6, cv.width - 12, cv.height - 12, 44);
+    c.fill();
+    c.textAlign = 'center';
+    c.textBaseline = 'middle';
+    if (done) {
+      c.fillStyle = '#fff4e0';
+      c.font = '700 78px system-ui, sans-serif';
+      c.fillText(this.fistT > 0 ? 'Hold it…' : '3/3  All three caught', cv.width / 2, 78);
+      SEED_KINDS.forEach((k, i) => this.drawSeedIcon(c, k, cv.width / 2 + (i - 1) * 110, 165, 34, true, false));
+      c.fillStyle = '#d8cbb8';
+      c.font = '50px system-ui, sans-serif';
+      c.fillText('make a fist to play again', cv.width / 2, 245);
+    } else {
+      const w = cv.width / 3;
+      SEED_KINDS.forEach((k, i) => {
+        const cx = w * i + w / 2;
+        const got = cst.caught[k];
+        const current = !got && k === cst.kind;
+        if (current) {
+          c.strokeStyle = SEED_COLOR[k];
+          c.lineWidth = 8;
+          c.beginPath();
+          c.roundRect(w * i + 22, 30, w - 44, cv.height - 60, 30);
+          c.stroke();
+        }
+        this.drawSeedIcon(c, k, cx, 105, 38, got, current);
+        c.fillStyle = got ? '#fff4e0' : current ? '#f2e6d8' : '#9d93a6';
+        c.font = `${got || current ? 700 : 500} 56px system-ui, sans-serif`;
+        c.fillText(`${SEED_LABEL[k]} ${got ? 1 : 0}/1`, cx, 205);
+      });
+    }
+    this.hudTex.needsUpdate = true;
+  }
+
+  /** Seed symbol for the progress display: circle, diamond, triangle. */
+  private drawSeedIcon(c: CanvasRenderingContext2D, k: SeedKind, x: number, y: number, r: number, filled: boolean, current: boolean): void {
+    c.beginPath();
+    if (k === 'gold') c.arc(x, y, r, 0, Math.PI * 2);
+    else if (k === 'blue') {
+      c.moveTo(x, y - r * 1.15);
+      c.lineTo(x + r, y);
+      c.lineTo(x, y + r * 1.15);
+      c.lineTo(x - r, y);
+      c.closePath();
+    } else {
+      c.moveTo(x, y - r * 1.1);
+      c.lineTo(x + r * 1.05, y + r * 0.8);
+      c.lineTo(x - r * 1.05, y + r * 0.8);
+      c.closePath();
+    }
+    if (filled) {
+      c.fillStyle = SEED_COLOR[k];
+      c.fill();
+      // check mark: caught
+      c.strokeStyle = '#1a1424';
+      c.lineWidth = 9;
+      c.beginPath();
+      c.moveTo(x - r * 0.45, y + r * 0.05);
+      c.lineTo(x - r * 0.1, y + r * 0.4);
+      c.lineTo(x + r * 0.5, y - r * 0.35);
+      c.stroke();
+    } else {
+      c.strokeStyle = current ? SEED_COLOR[k] : '#6f6779';
+      c.lineWidth = 7;
+      c.stroke();
     }
   }
 
@@ -1134,17 +1341,13 @@ export class PalmfulSystem extends createSystem({}) {
         ? { title: 'Turn your palm up', sub: '' }
         : { title: 'Hold out your hand', sub: 'palm up, under the seed' };
     }
-    if (this.phase === 'done') {
-      return this.fistT > 0
-        ? { title: 'Hold it\u2026', sub: '' }
-        : { title: 'All three caught', sub: 'make a fist to play again' };
-    }
+    if (this.phase === 'done') return null; // the progress display becomes the completion card
     if (!this.tracked) return { title: 'Bring your hand back', sub: '' };
     switch (cst.seed) {
       case 'caught':
-        return { title: `Caught ${cst.catches} of 3`, sub: '' };
+        return null; // progress display updates instead
       case 'missed':
-        return { title: 'Missed', sub: 'it will come back' };
+        return { title: 'Missed', sub: `the ${SEED_LABEL[cst.kind].toLowerCase()} seed will come back` };
       case 'resting':
         return cst.restT > 1.5 && cst.cupT === 0 ? { title: 'Gently cup your hand', sub: '' } : null;
       default:
@@ -1163,7 +1366,8 @@ export class PalmfulSystem extends createSystem({}) {
       this.placeAboveHandInView();
     } else if (this.phase === 'await') {
       // just under the floating seed
-      this.hint.position.set(this.seed.position.x, this.seed.position.y - 0.045, this.seed.position.z);
+      const sp = MODE === 'catch' && this.catchSeed ? this.catchSeed.position : this.seed.position;
+      this.hint.position.set(sp.x, sp.y - 0.045, sp.z);
     } else {
       this.player.head.getWorldDirection(this.tmp);
       this.hint.position.set(
