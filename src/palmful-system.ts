@@ -70,7 +70,7 @@ import {
   stepCatch,
 } from './palm/catch-sim.js';
 import { type Vec3, v3 } from './palm/math.js';
-import { HandSilhouette } from './hand-silhouette.js';
+import { addSeeThrough, HandSilhouette } from './hand-silhouette.js';
 import { chooseHand, type Engagement, type HandView, makeEngagement, type Side } from './palm/two-hand.js';
 
 const PARAMS = new URLSearchParams(location.search);
@@ -109,9 +109,9 @@ const FLASH_S = 1.5;
  */
 export type HandSize = 'S' | 'M' | 'L';
 const HAND_SIZES: Record<HandSize, { joint: number; bone: number; silhouette: number }> = {
-  S: { joint: 0.0035, bone: 0.0012, silhouette: 0.8 },
+  S: { joint: 0.0035, bone: 0.0012, silhouette: 0.86 },
   M: { joint: 0.005, bone: 0.002, silhouette: 1 },
-  L: { joint: 0.0072, bone: 0.0032, silhouette: 1.25 },
+  L: { joint: 0.0072, bone: 0.0032, silhouette: 1.16 },
 };
 export const HAND_SIZE_KEY = 'palmful.laptopHandSize';
 function readHandSize(): HandSize {
@@ -213,6 +213,8 @@ declare global {
       restartArmed: () => boolean;
       /** laptop test aid: freeze at the next catch/miss cue (true), resume (false) */
       holdCue: (on: boolean) => string;
+      /** laptop test aid: pause the game now (true) or resume (false); the hand still moves */
+      freeze: (on: boolean) => string;
       /** laptop view: is the hand silhouette drawn, and the bright bones? */
       silhouette: () => { silhouette: boolean; bones: boolean };
       twoHands: () => {
@@ -275,6 +277,8 @@ export class PalmfulSystem extends createSystem({}) {
   // catch mode
   private cst: CatchState | null = null;
   private ring!: Mesh;
+  /** laptop view: faint copy of the ring drawn where the hand model hides it */
+  private ringXray: Mesh | null = null;
   private ringMat!: MeshBasicMaterial;
   private halo!: Mesh;
   private headV = v3();
@@ -389,7 +393,7 @@ export class PalmfulSystem extends createSystem({}) {
         this.root.add(b);
       }
       if (EMULATED_VIEW) {
-        this.silhouette = new HandSilhouette();
+        this.silhouette = new HandSilhouette(FULL_SKELETON);
         this.root.add(this.silhouette.group);
       }
       if (EMULATED_VIEW) {
@@ -439,6 +443,10 @@ export class PalmfulSystem extends createSystem({}) {
       restartArmed: () => this.restartArmed,
       holdCue: (on: boolean) => {
         if (EMULATED_VIEW) this.cueHold = !on ? 'off' : this.cueHold === 'frozen' ? 'frozen' : 'armed';
+        return this.cueHold;
+      },
+      freeze: (on: boolean) => {
+        if (EMULATED_VIEW) this.cueHold = on ? 'frozen' : 'off';
         return this.cueHold;
       },
       silhouette: () => ({
@@ -543,6 +551,8 @@ export class PalmfulSystem extends createSystem({}) {
     );
     center.position.y = 0.0135;
     g.add(center);
+    // laptop view: a flower inside a closed fist still shows, faintly
+    if (EMULATED_VIEW && !FULL_SKELETON) addSeeThrough(g, 0.5, 0.4);
     g.scale.setScalar(0.001);
     this.root.add(g);
     return g;
@@ -736,7 +746,7 @@ export class PalmfulSystem extends createSystem({}) {
           this.root.add(m);
         }
         if (EMULATED_VIEW) {
-          t.silhouette = new HandSilhouette();
+          t.silhouette = new HandSilhouette(FULL_SKELETON);
           this.root.add(t.silhouette.group);
         }
       }
@@ -787,22 +797,31 @@ export class PalmfulSystem extends createSystem({}) {
   private renderJointDots(): void {
     if (!SKELETON) return;
     if (this.tracks) {
-      for (const t of [this.tracks.right, this.tracks.left]) this.drawSkeleton(t.joints, t.tracked, t.dots, t.bones, t.silhouette);
+      for (const t of [this.tracks.right, this.tracks.left]) this.drawSkeleton(t.joints, t.tracked, t.dots, t.bones, t.silhouette, t.side === 'left');
     } else {
-      this.drawSkeleton(this.joints, this.tracked, this.jointDots, this.boneMeshes, this.silhouette);
+      this.drawSkeleton(this.joints, this.tracked, this.jointDots, this.boneMeshes, this.silhouette, this.primary === 'left');
     }
   }
 
-  private drawSkeleton(joints: HandJoints, tracked: boolean, dots: Mesh[], bones: Mesh[], sil: HandSilhouette | null): void {
+  /** Joint lookup for the laptop hand model, without a per-frame closure. */
+  private atJoints: HandJoints | null = null;
+  private readonly atFn = (i: number): Vec3 => this.keys[i].get(this.atJoints!);
+  private jointAt(joints: HandJoints): (i: number) => Vec3 {
+    this.atJoints = joints;
+    return this.atFn;
+  }
+
+  private drawSkeleton(joints: HandJoints, tracked: boolean, dots: Mesh[], bones: Mesh[], sil: HandSilhouette | null, left: boolean): void {
     const size = HAND_SIZES[this.handSize];
-    sil?.update((i) => this.keys[i].get(joints), size.silhouette, tracked);
-    // with the silhouette, joints are small, subtle dots and bones are hidden
+    sil?.update(this.jointAt(joints), size.silhouette, tracked, left);
+    // with the laptop hand model, joint dots and bones are hidden in normal
+    // play; &debug=1 (or ?skeleton=1) shows the full skeleton through a faint hand
     const subtle = sil !== null && !FULL_SKELETON;
     for (let i = 0; i < dots.length; i++) {
       const p = this.keys[i].get(joints);
       dots[i].position.set(p.x, p.y, p.z);
-      dots[i].visible = tracked;
-      dots[i].scale.setScalar(subtle ? size.joint * 0.45 : size.joint);
+      dots[i].visible = tracked && !subtle;
+      dots[i].scale.setScalar(size.joint);
     }
     for (let n = 0; n < bones.length; n++) {
       const b = bones[n];
@@ -1255,6 +1274,11 @@ export class PalmfulSystem extends createSystem({}) {
     this.ring.rotation.x = -Math.PI / 2;
     this.ring.visible = false;
     this.root.add(this.ring);
+    if (EMULATED_VIEW && !FULL_SKELETON) {
+      // laptop view: the ring stays readable where the hand model covers it
+      this.ringXray = addSeeThrough(this.ring, 0.4)[0];
+      for (const k of SEED_KINDS) addSeeThrough(this.seedShapes[k], 0.55, 0.3);
+    }
 
     // Progress display (and, at the end, the completion card).
     this.hudCanvas = document.createElement('canvas');
@@ -1447,6 +1471,11 @@ export class PalmfulSystem extends createSystem({}) {
         this.ringMat.color.set(f.color);
         this.ringMat.opacity = k < 0.7 ? 1 : (1 - k) / 0.3;
       }
+    }
+    if (this.ringXray) {
+      const xm = this.ringXray.material as MeshBasicMaterial;
+      xm.color.copy(this.ringMat.color);
+      xm.opacity = this.ringMat.opacity * 0.45;
     }
   }
 

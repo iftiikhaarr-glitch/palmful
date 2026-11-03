@@ -119,6 +119,21 @@ Keep this file current; it is how work continues across sessions.
 - **Test aid:** `__palmful.holdCue(true)` (laptop only) freezes the game at the next catch/miss cue so the ~3 s headless screenshot can see the 1.5 s cue. Players never trigger it.
 - **Quest:** unchanged. The real hand and IWSDK's outline are what a player sees; alignment and readability there still need the headset.
 
+## Laptop 3D hand (3 Nov 2026, on top of `hand-silhouette`)
+
+- **Laptop only (`?emulate`); the Quest path is untouched** (the hand model, see-through cue copies and pose blending are all behind `?emulate`).
+- `src/hand-silhouette.ts` now builds a procedural 3D hand from the same filtered joints the game uses, every frame. No new asset, no new dependency, no licence question: it is code in this repo.
+  - Each finger and the thumb is one smooth tapered tube (Catmull-Rom through its joints) with a rounded tip; the palm is a closed, rounded pillow from wrist to knuckles with a shallow hollow on the palm side; the wrist is an oval tube that narrows and fades out over 5 cm.
+  - Finger and thumb roots are capped and start inside the palm, so no seams or dark holes. The palm's skin sits about 1 cm out from the joints, where the game rests the seed (`center + normal × 0.8 cm`), so a resting seed sits on the visible palm.
+  - Shading: soft view-relative key light, a muted warm grey-rose skin (#b9a6a8) that reads on the dark room without outshining seeds, and a restrained cool edge light. No glow, no texture.
+  - Still one geometry and 2 draw calls per hand (depth pre-pass + colour pass, identical vertex program so they never z-fight). About 1.4k vertices; normals are computed in place without per-frame allocation.
+- **Joint dots** are hidden in normal laptop play. `&debug=1` / `?skeleton=1` shows the full skeleton through a faint (30 %) hand.
+- **See-through cues:** where the hand covers the landing ring, a seed or a flower (for example a flower inside a fist), a faint copy is drawn on top (reversed depth test), so cues never vanish.
+- **Pose blending:** the laptop keys now use IWER's `set_hand_pose` with `duration: 0.22` (minimum-jerk). The game reads the blended joints, so drawing and catch logic stay in step.
+- **Hand size:** Small/Medium/Large are now 0.86 / 1 / 1.16 × thickness (were 0.8 / 1 / 1.25) so Large does not bury a resting seed. Positions are unchanged.
+- **Test aids (laptop only):** `__palmful.freeze(true/false)` pauses the game while the hand still moves; `window.__palmfulFitPaused` stops the auto camera fit for angled screenshots. Players never trigger them.
+- **Checked:** `test/hand-poses.mjs` captures open, receive, cup-with-seed and fist from the front and at an angle, and checks the palm is lit and the resting seed is over the game's palm centre.
+
 ## Not verified (needs a headset): see `docs/QUEST_TEST_GUIDE.md`
 
 ## Open issues
@@ -145,6 +160,6 @@ Same creature, same tilt-and-bloom loop, but Mote rides a small **leaf you hold 
 
 ## Demo-video fallback (if no headset footage)
 
-Emulator footage (the translucent laptop silhouette stands in for the hand; `?skeleton=1` adds bright joints), clearly
+Emulator footage (the shaded laptop 3D hand stands in for the hand; `?skeleton=1` adds bright joints), clearly
 captioned as emulator footage, plus an honest line in the description. This is
 allowed by the rules but is much weaker than real passthrough footage.

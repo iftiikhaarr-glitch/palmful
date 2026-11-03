@@ -50,7 +50,8 @@ export async function installLaptopEmulator(): Promise<void> {
   let pitch0: number | null = null; // camera pitch (degrees), set after Start
   let fitting = false;
   window.addEventListener('palmful-fit', async (e) => {
-    if (!started || pitch0 === null || fitting) return;
+    // __palmfulFitPaused: test aid for angled screenshots (camera left where it is put)
+    if (!started || pitch0 === null || fitting || (window as unknown as { __palmfulFitPaused?: boolean }).__palmfulFitPaused) return;
     fitting = true;
     try {
       const { x0, x1, y0, y1 } = (e as CustomEvent<{ x0: number; x1: number; y0: number; y1: number }>).detail;
@@ -97,6 +98,12 @@ export async function installLaptopEmulator(): Promise<void> {
 
   const call = (m: string, p?: Record<string, unknown>) =>
     remote.dispatch(m, p).catch((e: unknown) => console.warn('[laptop]', m, e));
+  /** Change hand pose with a short eased blend (IWER's pose fade), so open,
+   *  cup and fist flow into each other. The game reads the same blended
+   *  joints it draws, so what you see is what the catch logic sees. */
+  const POSE_FADE_S = 0.22;
+  const pose = (side: 'left' | 'right', poseId: string) =>
+    call('set_hand_pose', { device: `hand-${side}`, poseId, duration: POSE_FADE_S, easing: 'minimum-jerk' });
 
   const applyHand = async () => {
     if (!started) return;
@@ -247,7 +254,7 @@ export async function installLaptopEmulator(): Promise<void> {
         case 'C':
           cupped = !cupped;
           fist = false;
-          await call('set_hand_pose', { device: `hand-${ctrl}`, poseId: cupped ? 'cup' : 'flat' });
+          await pose(ctrl, cupped ? 'cup' : 'flat');
           break;
         case 't':
         case 'T':
@@ -277,7 +284,7 @@ export async function installLaptopEmulator(): Promise<void> {
         case 'F':
           fist = !fist;
           cupped = false;
-          await call('set_hand_pose', { device: `hand-${ctrl}`, poseId: fist ? 'fist' : 'flat' });
+          await pose(ctrl, fist ? 'fist' : 'flat');
           break;
         case 'h':
         case 'H':
@@ -328,7 +335,7 @@ export async function installLaptopEmulator(): Promise<void> {
       case 'f':
       case 'F':
         fist = !fist;
-        await call('set_hand_pose', { device: 'hand-right', poseId: fist ? 'fist' : 'flat' });
+        await pose('right', fist ? 'fist' : 'flat');
         break;
       case 'h':
       case 'H':
