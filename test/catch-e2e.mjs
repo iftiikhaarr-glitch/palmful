@@ -1,12 +1,19 @@
 // End-to-end for catch mode (?catch=1) against the PRODUCTION build, played
-// only with the laptop keys: move under the seed, let it land, cup (C).
-// Covers: no catch without a cup, catch, a deliberate miss with progress
-// kept, tracking loss pausing the seed, three-catch completion, the
-// completion panel layout, and a fist replay.
+// only with the laptop controls. Covers: opening, progress display, hand
+// display sizes (alignment + saved preference), seed selection keys 1/2/3,
+// every seed colour (gold, blue, pink), no catch without a cup, a miss that
+// returns the same seed and keeps progress, tracking loss pausing the seed,
+// catch/miss cue pixels, the completion card layout, and a fist restart that
+// resets all counts.
 // Usage: node test/catch-e2e.mjs https://localhost:4173/ [screenshotDir]
 import { chromium } from 'playwright';
 import { PNG } from 'pngjs';
 import fs from 'node:fs';
+
+const base = process.argv[2] ?? 'https://localhost:4173/';
+const shots = process.argv[3] ?? '.';
+const t0 = Date.now();
+const log = (...a) => console.log(`[${((Date.now() - t0) / 1000).toFixed(0)}s]`, ...a);
 
 /** Count strongly green / strongly red pixels in a screenshot (cue check). */
 function cuePixels(file) {
@@ -14,19 +21,18 @@ function cuePixels(file) {
   let green = 0, red = 0;
   for (let i = 0; i < png.data.length; i += 4) {
     const r = png.data[i], g = png.data[i + 1], b = png.data[i + 2];
-    if (g > 150 && g - Math.max(r, b) > 60) green++;
-    if (r > 150 && r - Math.max(g, b) > 60) red++;
+    // cue green #2bff6e and cue red #ff3b3b only; not gold, blue, pink or UI orange
+    if (g > 150 && r < 120 && b < 170 && g - Math.max(r, b) > 60) green++;
+    if (r > 150 && g < 110 && b < 110) red++;
   }
   return { green, red };
 }
 
-const base = process.argv[2] ?? 'https://localhost:4173/';
-const shots = process.argv[3] ?? '.';
-const t0 = Date.now();
-const log = (...a) => console.log(`[${((Date.now() - t0) / 1000).toFixed(0)}s]`, ...a);
-
 const browser = await chromium.launch({ args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader'] });
-const page = await browser.newPage({ ignoreHTTPSErrors: true, viewport: { width: 900, height: 640 } });
+const context = await browser.newContext({ ignoreHTTPSErrors: true, viewport: { width: 1280, height: 800 } });
+const page = await context.newPage();
+const errors = [];
+page.on('pageerror', (e) => errors.push(String(e)));
 
 const state = () =>
   page.evaluate(() => {
@@ -34,13 +40,14 @@ const state = () =>
     if (!p) return null;
     const c = p.catch;
     return {
-      tracked: p.tracked, phase: p.phase, hint: p.hint, cup: p.cup, mode: p.mode,
+      tracked: p.tracked, phase: p.phase, hint: p.hint, cup: p.cup, mode: p.mode, size: p.handSize(),
       palm: { ...p.palmCenter },
-      seed: c ? { state: c.seed, x: c.pos.x, y: c.pos.y, z: c.pos.z, catches: c.catches, misses: c.misses, round: c.round } : null,
+      seed: c ? { state: c.seed, kind: c.kind, caught: { ...c.caught }, x: c.pos.x, y: c.pos.y, z: c.pos.z, catches: c.catches, misses: c.misses, round: c.round } : null,
       m: { ...p.metrics },
     };
   });
-const fmt = (s) => s?.seed ? `seed=${s.seed.state} caught=${s.seed.catches} missed=${s.seed.misses} round=${s.seed.round} phase=${s.phase} cup=${s.cup.toFixed(2)} hint="${s.hint}"` : JSON.stringify(s);
+const prog = (s) => `gold ${s.seed.caught.gold ? 1 : 0}/1 blue ${s.seed.caught.blue ? 1 : 0}/1 pink ${s.seed.caught.pink ? 1 : 0}/1`;
+const fmt = (s) => (s?.seed ? `${s.seed.kind}:${s.seed.state} [${prog(s)}] missed=${s.seed.misses} phase=${s.phase} hint="${s.hint}"` : JSON.stringify(s));
 async function waitFor(desc, pred, timeoutS) {
   const end = Date.now() + timeoutS * 1000;
   let s;
@@ -52,11 +59,15 @@ async function waitFor(desc, pred, timeoutS) {
   log('FAIL', desc, fmt(s));
   throw new Error('timeout: ' + desc);
 }
+function check(desc, ok, detail = '') {
+  log(ok ? 'OK  ' : 'FAIL', desc, detail);
+  if (!ok) throw new Error(desc);
+}
 const press = async (k, n = 1) => { for (let i = 0; i < n; i++) { await page.keyboard.press(k); await page.waitForTimeout(40); } };
 
 /** Move the hand (2 cm per key press) until the palm is under the seed. */
 async function moveUnderSeed() {
-  for (let i = 0; i < 40; i++) {
+  for (let i = 0; i < 50; i++) {
     const s = await state();
     const dx = s.seed.x - s.palm.x;
     const dz = s.seed.z - s.palm.z;
@@ -66,6 +77,19 @@ async function moveUnderSeed() {
     await page.waitForTimeout(60);
   }
 }
+/** Catch the current seed: move under it, let it land, cup, open again. */
+async function catchCurrent(label) {
+  const before = await waitFor(`${label}: seed falling`, (s) => s.seed.state === 'falling', 30);
+  await moveUnderSeed();
+  await waitFor(`${label}: lands in the open palm`, (s) => s.seed.state === 'resting', 30);
+  await press('C');
+  const after = await waitFor(`${label}: cup catches it`, (s) => s.seed.caught[before.seed.kind] && s.seed.catches === before.seed.catches + 1, 15);
+  return after;
+}
+const clickSize = async (z) => {
+  await page.click(`.laptop-size[data-size="${z}"]`);
+  await page.waitForTimeout(250);
+};
 
 let ok = false;
 try {
@@ -73,76 +97,119 @@ try {
   await page.waitForSelector('#laptop-start', { timeout: 60000 });
   await page.waitForTimeout(2500);
   await page.click('#laptop-start');
-  await waitFor('catch mode: before any hand the seed waits and asks for a palm', (s) => s.mode === 'catch' && s.phase === 'await' && /Hold out your hand/.test(s.hint) && s.seed?.state === 'waiting', 60);
-  await page.screenshot({ path: `${shots}/catch-1-await.png` });
+  // Start finishes when the emulator has accepted the session and placed the headset
+  await page.waitForFunction(() => document.querySelector('#laptop-start')?.style.display === 'none', null, { timeout: 30000 });
+  await page.waitForTimeout(500);
+  await waitFor('opening: gold seed waits, progress display shows 0/1 x3, asks for a palm', (s) =>
+    s.mode === 'catch' && s.phase === 'await' && s.seed?.state === 'waiting' && s.seed.kind === 'gold' && s.seed.catches === 0 && /Hold out your hand/.test(s.hint), 60);
+  const pts0 = await page.evaluate(() => window.__palmful.screenPoints());
+  check('progress display and seed are on screen at the opening', !!pts0.hud && !!pts0.seed, JSON.stringify({ hud: pts0.hud, seed: pts0.seed }));
+  check('status says the hand is lowered', /HAND HIDDEN/.test(await page.textContent('#laptop-status')));
+  await page.screenshot({ path: `${shots}/v2-1-opening.png` });
 
+  // Keys 1/2/3 choose an uncaught seed (testing aid)
+  await press('2');
+  await waitFor('key 2 selects the blue seed', (s) => s.seed.kind === 'blue' && s.seed.state === 'waiting', 5);
+  await press('3');
+  await waitFor('key 3 selects the pink seed', (s) => s.seed.kind === 'pink', 5);
+  await press('1');
+  await waitFor('key 1 selects gold again', (s) => s.seed.kind === 'gold', 5);
+
+  // Gold: no catch without a cup, then catch
   await press(' ');
-  await waitFor('palm offered: the seed starts to fall', (s) => s.seed.state === 'falling', 30);
-  await page.screenshot({ path: `${shots}/catch-2-falling.png` });
+  await waitFor('gold: palm offered, seed falls', (s) => s.seed.state === 'falling', 30);
   await moveUnderSeed();
-  await waitFor('hand moved under it: the seed lands in the open palm', (s) => s.seed.state === 'resting', 30);
+  await waitFor('gold: lands in the open palm', (s) => s.seed.state === 'resting', 30);
   await page.waitForTimeout(2500);
-  await waitFor('no false catch: open palm holds it but does not catch (2.5 s)', (s) => s.seed.state === 'resting' && s.seed.catches === 0, 5);
-  await page.screenshot({ path: `${shots}/catch-3-resting.png` });
+  await waitFor('no false catch: open palm holds it 2.5 s without catching', (s) => s.seed.state === 'resting' && s.seed.catches === 0, 5);
+
+  // Hand display size: positions must not move when the size changes
+  const sizes = {};
+  for (const z of ['S', 'M', 'L']) {
+    await clickSize(z);
+    const st = await state();
+    sizes[z] = { size: st.size, pts: await page.evaluate(() => window.__palmful.screenPoints()) };
+  }
+  check('Small / Medium / Large all apply', sizes.S.size === 'S' && sizes.M.size === 'M' && sizes.L.size === 'L');
+  let maxShift = 0;
+  for (const name of ['joint', 'seed', 'ring']) {
+    const a = sizes.S.pts[name] ?? [], b = sizes.L.pts[name] ?? [];
+    a.forEach(([x, y], i) => { if (b[i]) maxShift = Math.max(maxShift, Math.hypot((x - b[i][0]) * 1280, (y - b[i][1]) * 800)); });
+  }
+  check('hand joints, seed and ring stay aligned across sizes (max shift < 2 px)', maxShift < 2, `max shift ${maxShift.toFixed(2)} px`);
+  await page.screenshot({ path: `${shots}/v2-size-L.png` });
+  await clickSize('S');
+  await page.screenshot({ path: `${shots}/v2-size-S.png` });
+  await clickSize('L');
+  check('the size buttons do not steal keyboard focus', (await page.evaluate(() => document.activeElement?.tagName)) !== 'BUTTON');
+
   await press('C');
-  const caught1 = await waitFor('gentle cup catches it: flower 1', (s) => s.seed.catches === 1, 15);
-  const r1 = caught1.seed.round + 1; // the next seed's round
-  await page.screenshot({ path: `${shots}/catch-4-caught.png` });
-  const cueCatch = cuePixels(`${shots}/catch-4-caught.png`);
-  log(cueCatch.green > 200 ? 'OK  ' : 'FAIL', 'catch cue on screen: green pixels', cueCatch.green, 'red', cueCatch.red);
-  if (cueCatch.green <= 200) throw new Error('no visible green catch cue');
-  await press('C'); // open again
+  const g = await waitFor('gold caught: progress gold 1/1', (s) => s.seed.caught.gold && s.seed.catches === 1, 15);
+  await page.screenshot({ path: `${shots}/v2-catch-cue.png` });
+  const cueCatch = cuePixels(`${shots}/v2-catch-cue.png`);
+  check('catch cue visible (green, no red)', cueCatch.green > 200 && cueCatch.red === 0, JSON.stringify(cueCatch));
+  await press('C');
+  await waitFor('next seed is blue', (s) => s.seed.kind === 'blue', 15);
+  await page.screenshot({ path: `${shots}/v2-2-progress-1.png` });
 
-  // Next seed: stay put (it spawns at least 10 cm away), so it is missed.
-  await waitFor('next seed falling', (s) => s.seed.state === 'falling' && s.seed.round === r1, 30);
-  const missed = await waitFor('hand left where it was: the seed is missed', (s) => s.seed.state === 'missed', 30);
-  await page.screenshot({ path: `${shots}/catch-5-missed.png` });
-  const cueMiss = cuePixels(`${shots}/catch-5-missed.png`);
-  log(cueMiss.red > 200 ? 'OK  ' : 'FAIL', 'miss cue on screen: red pixels', cueMiss.red, 'green', cueMiss.green);
-  if (cueMiss.red <= 200) throw new Error('no visible red miss cue');
-  if (missed.seed.catches !== 1 || missed.seed.misses !== 1) throw new Error('miss should keep progress');
-  await waitFor('the seed comes back for another try; progress kept', (s) => s.seed.round === r1 + 1 && s.seed.catches === 1 && s.seed.misses === 1, 30);
+  // Blue: a deliberate miss returns blue and keeps gold
+  await waitFor('blue falling', (s) => s.seed.state === 'falling', 30);
+  const missed = await waitFor('hand left where it was: blue is missed', (s) => s.seed.state === 'missed', 30);
+  await page.screenshot({ path: `${shots}/v2-miss-cue.png` });
+  const cueMiss = cuePixels(`${shots}/v2-miss-cue.png`);
+  check('miss cue visible (red, no green)', cueMiss.red > 200 && cueMiss.green === 0, JSON.stringify(cueMiss));
+  check('miss keeps earlier catches', missed.seed.caught.gold && missed.seed.misses === 1);
+  await waitFor('the SAME blue seed comes back; gold still caught', (s) => s.seed.kind === 'blue' && s.seed.round > missed.seed.round && s.seed.caught.gold, 30);
 
-  // Tracking loss mid-fall pauses the seed.
-  await waitFor('falling again', (s) => s.seed.state === 'falling', 30);
+  // Tracking loss mid-fall pauses the seed
+  await waitFor('blue falling again', (s) => s.seed.state === 'falling', 30);
   await press('H');
-  const lost = await waitFor('hand hidden: tracking lost', (s) => !s.tracked, 10);
+  const lost = await waitFor('hand lowered: tracking lost', (s) => !s.tracked, 10);
   await page.waitForTimeout(2500);
   const still = await state();
-  if (Math.abs(still.seed.y - lost.seed.y) > 0.002 || still.seed.state !== 'falling' || still.seed.misses !== 1)
-    throw new Error(`seed did not pause: ${lost.seed.y} -> ${still.seed.y} ${still.seed.state}`);
-  log('OK  ', 'seed paused while the hand was lost (2.5 s, no miss)', fmt(still), /Bring your hand back/.test(still.hint) ? '' : '(hint missing!)');
-  if (!/Bring your hand back/.test(still.hint)) throw new Error('no hand-loss hint');
+  check('seed paused 2.5 s while the hand was lost; no miss; hint shown',
+    Math.abs(still.seed.y - lost.seed.y) < 0.002 && still.seed.state === 'falling' && still.seed.misses === 1 && /Bring your hand back/.test(still.hint),
+    fmt(still));
   await press('H');
-  await waitFor('hand back: tracked again', (s) => s.tracked, 10);
+  await waitFor('hand back', (s) => s.tracked, 10);
   await moveUnderSeed();
-  await waitFor('lands', (s) => s.seed.state === 'resting', 30);
+  await waitFor('blue lands', (s) => s.seed.state === 'resting', 30);
   await press('C');
-  await waitFor('catch 2', (s) => s.seed.catches === 2, 15);
+  await waitFor('blue caught: progress gold 1/1 blue 1/1', (s) => s.seed.caught.blue && s.seed.catches === 2, 15);
   await press('C');
+  await waitFor('next seed is pink', (s) => s.seed.kind === 'pink' && s.seed.state !== 'caught', 15);
+  await page.screenshot({ path: `${shots}/v2-3-progress-2.png` });
+  await press('1');
+  await waitFor('key 1 refuses gold (already caught); pink stays', (s) => s.seed.kind === 'pink', 3);
+  check('status explains the refusal', /already caught/.test(await page.textContent('#laptop-status')));
 
-  await waitFor('third seed falling', (s) => s.seed.state === 'falling' && s.seed.catches === 2, 30);
-  await moveUnderSeed();
-  await waitFor('lands', (s) => s.seed.state === 'resting', 30);
-  await press('C');
-  await waitFor('catch 3 completes the session', (s) => s.seed.catches === 3 && s.phase === 'done' && s.seed.state === 'done', 20);
-  await page.waitForTimeout(1200);
+  // Pink completes the set
+  await catchCurrent('pink');
+  await waitFor('3/3: session complete', (s) => s.phase === 'done' && s.seed.state === 'done' && s.seed.catches === 3, 20);
+  await page.waitForTimeout(1500);
   const layout = await page.evaluate(() => window.__palmful.layout());
-  log(layout.panelVisible && layout.overlaps === 0 ? 'OK  ' : 'FAIL', 'completion panel clear of hand and flowers', JSON.stringify(layout));
-  if (!layout.panelVisible || layout.overlaps !== 0) throw new Error('completion panel overlaps');
-  await page.screenshot({ path: `${shots}/catch-6-complete.png` });
+  check('completion card is shown and clear of the hand and flowers', layout.panelVisible && layout.overlaps === 0, JSON.stringify(layout));
+  await page.screenshot({ path: `${shots}/v2-4-complete.png` });
 
-  await press('C'); // open
+  // Fist restart resets every count
+  await press('C');
   await press('F');
-  await waitFor('fist replays: fresh session', (s) => s.m.restarts >= 1 && s.seed.catches === 0 && s.phase === 'play', 20);
+  await waitFor('fist restart: all counts reset, gold first', (s) => s.m.restarts >= 1 && s.seed.catches === 0 && s.seed.misses === 0 && !s.seed.caught.gold && !s.seed.caught.blue && !s.seed.caught.pink && s.seed.kind === 'gold' && s.phase === 'play', 20);
+  await press('F');
+  await waitFor('hand opened: the gold seed falls again', (s) => s.seed.state === 'falling', 15);
+
+  // Saved display size survives a reload
+  await page.reload();
+  await page.waitForSelector('#laptop-start', { timeout: 60000 });
   await page.waitForTimeout(2000);
-  await waitFor('new seed waits while the hand is still a fist, asks to open it', (s) => s.seed.state === 'waiting' && /Open your hand/.test(s.hint), 5);
-  await press('F'); // open
-  await waitFor('hand opened: the new seed falls', (s) => s.seed.state === 'falling', 15);
+  const pressed = await page.getAttribute('.laptop-size[data-size="L"]', 'aria-pressed');
+  const savedSize = await page.evaluate(() => window.__palmful?.handSize());
+  check('hand display size saved locally: Large after reload', pressed === 'true' && savedSize === 'L', `button=${pressed} system=${savedSize}`);
+  check('no page errors', errors.length === 0, errors.join(' | '));
   ok = true;
 } catch (e) {
   log(String(e));
-  await page.screenshot({ path: `${shots}/catch-failure.png` }).catch(() => {});
+  await page.screenshot({ path: `${shots}/v2-failure.png` }).catch(() => {});
 } finally {
   await browser.close();
   process.exit(ok ? 0 : 1);

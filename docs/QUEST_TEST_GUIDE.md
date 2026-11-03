@@ -40,15 +40,23 @@ Pinch **Enter AR**. If asked to allow hand tracking or spatial data, choose **Al
 ## 3. Part B: Catch (3 minutes)
 
 Open: **`https://iftiikhaarr-glitch.github.io/palmful/?catch=1&debug=1`**
-Pinch **Enter AR**.
+Pinch **Enter AR**. Three seeds, one at a time: **gold circle** (left lane),
+**blue diamond** (right lane), **pink triangle** (centre lane). The display
+above the lanes shows "Gold 0/1 · Blue 0/1 · Pink 0/1"; catch one of each.
 
 | Time | Do this |
 |---|---|
-| 0:00–0:20 | **Cup calibration** (read the `cup` number on the panel): hold your hand palm up **flat** for 5 s, then **relaxed** (natural, slightly curled) for 5 s, then **gently cupped** (as if holding water) for 5 s. Say each number aloud. |
-| 0:20–1:40 | Play: a seed glows, then drifts down. Move your **open** palm under it (the ring turns green), let it land, then **gently cup**. Try to catch three. Say "attempt" each time you deliberately go for one. |
+| 0:00–0:20 | **Cup calibration** (read the `cup` number on the debug panel): hold your hand palm up **flat** for 5 s, then **relaxed** (natural, slightly curled) for 5 s, then **gently cupped** (as if holding water) for 5 s. Say each number aloud. |
+| 0:20–1:40 | Play: a seed glows, then drifts straight down. Move your **open** palm under it (the ring turns green), let it land, then **gently cup**. Say "attempt" each time you deliberately go for one. |
 | 1:40–2:10 | **False-catch check**: when the next seed lands in your open palm, keep the hand open and still for 5 s (it must *not* be caught). Then cup to catch it. |
-| 2:10–2:40 | **Miss and loss check**: let one seed fall past without moving. Then, while a seed is falling, hide your hand for 3 s and bring it back (the seed should pause, not be lost). |
-| 2:40–3:00 | Make a fist to replay, open your hand. Stop recording. |
+| 2:10–2:40 | **Miss and loss check**: let one seed fall past without moving (the same colour must come back; earlier catches stay). Then, while a seed is falling, hide your hand for 3 s and bring it back (the seed should pause). |
+| 2:40–3:00 | At 3/3, make a fist to restart (all counts back to 0/1), open your hand. Stop recording. |
+
+**Catch area.** The ring is the catch area. Its radius is 0.9 × your measured
+palm width (index-to-pinky knuckle), between 5.5 and 9.5 cm. It is sized from
+your real hand, so it lines up with your palm. Nothing in the headset enlarges or
+shifts the drawn hand. (The laptop's Small / Medium / Large setting only changes
+how thick the emulated hand is drawn and does not exist on the Quest.)
 
 ## 4. Send back
 
@@ -60,13 +68,18 @@ Pinch **Enter AR**.
    - Quest 3 or 3S? Lighting: bright, normal or dim?
    - Bloom: did Mote look like it was **sitting on your skin**? (yes / mostly / no)
    - Catch: did moving and cupping **register naturally**? Any catch you did
-     not mean to make? Any miss that felt unfair?
+     not mean to make? Any miss that felt unfair? Could you tell the three
+     seeds apart and read the progress display without effort?
    - Which one would you rather play again, and why?
    - Anything uncomfortable (arm tired, eyes, nausea)?
 
 Debug panel, Bloom: `fps 72  tracked 98%  palm-up 95%` / `jitter 1.2 mm …` /
 `play  palm  calm  blooms 1 …`. Catch: same first two lines, then
 `falling  caught 1  missed 0  spilled 0  cup 0.03`.
+
+**Emulator results do not show real-hand tracking, comfort, or Quest frame
+rate.** Everything so far has been checked only in an emulator; this test is
+the first real-hand evidence.
 
 ## 5. Pass / fail (decided before any results; do not change afterwards)
 
@@ -93,6 +106,7 @@ Debug panel, Bloom: `fps 72  tracked 98%  palm-up 95%` / `jitter 1.2 mm …` /
 | Deliberate attempts that end in a catch | ≥ 80 % | 60–79 % | < 60 % |
 | Cup separation (calibration numbers) | flat and relaxed < 0.30, gentle cup > 0.50 | relaxed 0.30–0.42 | relaxed ≥ 0.42 (relaxed hands would catch) or gentle cup < 0.42 (cups would not register) |
 | Tracking loss mid-fall | seed pauses, then can still be caught | | seed is lost or counted as a miss |
+| Readability | tester names the current seed and the progress at a glance | needs a second look | confuses colours or misreads progress |
 
 ## 6. Which version to keep
 

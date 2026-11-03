@@ -72,6 +72,18 @@ Keep this file current; it is how work continues across sessions.
 - The miss cue now plays at the ring, where the player is looking; it used to play out of view. Cues hold full strength for most of their 1.5 s.
 - **Measured:** background luminance 0.004. Contrast against it: hand joints 13.9:1, Mote 10.5:1, bloom seed about 5.5:1, catch seed 18.7:1, ring 7.8:1. The catch and miss frames contain the right cue colour and none of the other.
 
+## Catch v2 (3 Nov 2026, branch `catch-v2`)
+
+- **Rollback point:** branch `rollback/catch-v1` at `bee7966`. That is bloom, catch v1 and the dark laptop view. (Tags cannot be pushed from the cloud session.)
+- **Seeds:** gold sphere, blue diamond and pink triangle. They come in a fixed order, each in its own fixed lane (left, right, centre), and fall straight down at 6 cm/s. A miss returns the same seed and keeps earlier catches; a fist restart resets all counts.
+- **Progress display:** "Gold 0/1 · Blue 0/1 · Pink 0/1", 10 cm above the lanes and slightly below eye level, with the current seed outlined. It becomes the 3/3 completion card.
+- **Catch area:** 0.9 × measured palm width (`CATCH_TOLERANCE`), clamped to 5.5–9.5 cm. The ring is drawn at exactly that radius.
+- **Laptop only:**
+  - Keys 1/2/3 select an uncaught seed.
+  - Small/Medium/Large changes hand drawing thickness only, saved in localStorage. Joint, seed and ring screen positions are identical across sizes (0.00 px shift, tested).
+  - The help panel sits bottom-left, above the emulator view so it is clickable, and can be hidden.
+- **Tests:** 18 catch unit tests. The catch session test runs 38 checks: every colour, keys 1/2/3, a miss with progress kept, tracking loss, cue pixels, completion layout, fist reset, hand sizes and the saved setting.
+
 ## Not verified (needs a headset): see `docs/DEVICE_TEST.md`
 
 ## Open issues

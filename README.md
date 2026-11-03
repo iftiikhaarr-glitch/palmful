@@ -33,6 +33,11 @@ Space, ← ×6, then ↑ ×7, → ×4 → ring blooms. F, then F again → hatch
 
 ### Catch (experiment): https://iftiikhaarr-glitch.github.io/palmful/?emulate=1&catch=1
 
+Catch one gold (circle), one blue (diamond) and one pink (triangle) seed. The
+progress display reads "Gold 0/1 · Blue 0/1 · Pink 0/1"; the seed you're on is
+outlined. Each colour always falls in the same lane (gold left, blue right,
+pink centre).
+
 | Key | Does |
 |---|---|
 | Space | raise your hand palm up (press again later: back to the start position) |
@@ -40,20 +45,28 @@ Space, ← ×6, then ↑ ×7, → ×4 → ring blooms. F, then F again → hatch
 | ↑ / ↓ | move the hand forward / back |
 | W / S | move the hand up / down |
 | C | cup / open the hand |
+| 1 / 2 / 3 | testing aid: choose the gold / blue / pink seed (uncaught ones only) |
 | T | tip the palm sideways (spills a resting seed) |
-| F | toggle a fist (after three catches, a fist replays) |
-| H | lower / raise the hand (simulates tracking loss) |
+| F | toggle a fist (after 3/3, a fist restarts and resets every count) |
+| H | lower / raise the hand (simulates tracking loss; status shows HAND HIDDEN) |
+| ? | hide / show the help panel |
 
-One full session: Space → the seed glows, then drifts down. Hold ← or → (and
-↑/↓ if needed) until the ring under the seed turns green; the seed lands in
-the open palm. Press C → "Caught 1 of 3", a flower grows; press C again to
-open. Repeat for the next seeds, which come from the other side. Three catches →
-"All three caught". If you miss, the seed comes back. F, then F again to
-open → a new seed.
+Use the **Hand display: Small / Medium / Large** buttons in the panel to change
+how thick the emulated hand is drawn. The choice is saved in this browser. It
+changes only the drawing, never the joint positions, so the hand stays aligned
+with the ring and the seed.
+
+One full session: Space → the gold seed glows, then drifts down. Hold ← (and
+↑/↓ if needed) until the ring under it turns green. When it lands in the open
+palm, press C → "Gold 1/1", a gold flower grows; press C again to open. Blue
+comes down on the right, pink in the centre. 3/3 → "All three caught". If you
+miss, the same seed comes back and your earlier catches stay. F, then F again →
+everything resets.
 
 Add `&debug=1` to either for the metrics panel. Laptop mode uses Meta's IWER
 emulator and draws a dark room into the emulated view (only with `?emulate`;
-the real Quest AR view is never covered), with dots and lines in place of a hand. It shows that the game logic works; it does
+the real Quest AR view is never covered), with dots and bones in place of a hand.
+**Emulator results do not show real-hand tracking, comfort, or Quest frame rate.** It shows that the game logic works; it does
 **not** show tracking quality, cup detection on real hands, or Quest performance.
 
 ## Test on a Quest 3 / 3S
