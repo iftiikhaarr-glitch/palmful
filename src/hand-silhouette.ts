@@ -6,16 +6,19 @@
 // Shape: procedural, rebuilt from the tracked joints every frame, so it can
 // never drift from the positions the game uses for catching.
 //   - each finger and the thumb is ONE smooth tapered tube through its joints
-//     (Catmull-Rom), with a rounded fingertip; no gaps between segments
-//   - the palm is a closed, rounded "pillow" spanning wrist to knuckles, with a
-//     shallow hollow on the palm side; the finger roots start inside it
-//   - the wrist is an elliptical tube that narrows and fades out
-// Rendering: one geometry, two draw calls. A depth-only pass, then a colour
-// pass that only draws the front-most surface (depthFunc LessEqual), so
-// overlapping parts never add up into brighter patches. Shading is a soft
-// view-relative key light plus a restrained cool edge light.
-// Positions come straight from the tracked joints; the display size only
-// changes thickness, so the hand stays aligned with the ring and seed.
+//     (Catmull-Rom), with a rounded fingertip; its root is capped and starts
+//     inside the palm, so no gaps or holes
+//   - the palm is a closed, rounded "pillow" with a shallow hollow on the palm
+//     side; the same surface carries on past the wrist into the forearm (no
+//     separate wrist piece), and the forearm end fades into the floor colour
+// Rendering: one opaque mesh, one draw call, ordinary depth test. (An earlier
+// depth pre-pass + translucent colour pass relied on two shader programs
+// giving identical depth, which not every GPU driver guarantees.) Shading is a
+// soft view-relative key light plus a restrained cool edge light.
+// IWSDK's own hand visual (white outline + an invisible depth "occluder" hand,
+// meant for passthrough) is hidden in laptop mode by the system: it hid this
+// mesh in real browsers. Positions come straight from the tracked joints; the
+// display size only changes thickness.
 
 import {
   BufferAttribute,
@@ -24,7 +27,6 @@ import {
   DoubleSide,
   GreaterDepth,
   Group,
-  LessEqualDepth,
   type Material,
   Mesh,
   MeshBasicMaterial,
@@ -49,7 +51,7 @@ const THUMB = { chain: [17, 18, 19, 20], r: [0.0145, 0.0112, 0.0094, 0.0084] };
 export const SKIN_COLOR = '#b9a6a8'; // muted warm grey-rose: reads on the dark room, lets seeds pop
 const SHADOW_COLOR = '#3f3446';
 const RIM_COLOR = '#b8c8ff';
-export const SILHOUETTE_OPACITY = 0.96;
+const FADE_TO = '#221e2b'; // the floor colour: the forearm fades toward it
 const DEBUG_OPACITY = 0.3; // &debug=1: see the skeleton through the hand
 
 // Tessellation (per hand ~1.4k vertices, ~2.6k triangles).
@@ -58,8 +60,11 @@ const PER_SEG = 4; // samples per joint-to-joint segment
 const CAP = 4; // rings in a fingertip cap
 const PALM_AROUND = 20; // around the palm cross-section
 const PALM_ROWS = 9; // wrist -> knuckles
-const WRIST_RINGS = 7;
-const WRIST_SIDES = 16;
+/** Rows of the same surface continued past the wrist into the forearm (no separate cuff). */
+const FOREARM_V = [-0.62, -0.5, -0.38, -0.27, -0.17, -0.08];
+const ROWS = FOREARM_V.length + PALM_ROWS;
+/** Where along the hand each row sits: <0 forearm, 0 wrist, 1 knuckles (x wrist-to-knuckle length). */
+const ROW_V = [...FOREARM_V, ...Array.from({ length: PALM_ROWS }, (_, r) => r / (PALM_ROWS - 1))];
 
 // Palm proportions (m).
 const PALM_FRONT = 0.0108; // palm-side half thickness (skin sits ~1 cm out, where the seed rests)
@@ -67,8 +72,8 @@ const PALM_BACK = 0.0092; // back-of-hand half thickness
 const PALM_HOLLOW = 0.0018; // shallow dip in the middle of the palm
 const KNUCKLE_EDGE = 0.45; // palm edge reaches this far past the outer knuckles (x knuckle spacing)
 const WRIST_HALF_W = 0.022; // half width of the wrist where it meets the palm
+const WRIST_T = 0.0118; // wrist / forearm half thickness
 
-/** Shared by the depth and colour passes so their depths match exactly. */
 const VERTEX = /* glsl */ `
   attribute float alpha;
   varying vec3 vN;
@@ -102,7 +107,6 @@ export class HandSilhouette {
   private colorMat: ShaderMaterial;
   private fingerTubes: Tube[] = [];
   private thumbTube!: Tube;
-  private wristTube!: Tube;
   private palmStart = 0;
   private palmCapStart = 0;
   // hand frame
@@ -154,13 +158,12 @@ export class HandSilhouette {
     const fingerRings = 4 * PER_SEG + 1 + CAP; // 1 lead-in segment + 3 bones
     for (let f = 0; f < FINGERS.length; f++) this.fingerTubes.push(tube(fingerRings, SIDES, true, true));
     this.thumbTube = tube(fingerRings, SIDES, true, true);
-    this.wristTube = tube(WRIST_RINGS, WRIST_SIDES, false);
     this.palmStart = v;
-    tube(PALM_ROWS, PALM_AROUND, false);
+    tube(ROWS, PALM_AROUND, false); // forearm + wrist + palm: one continuous surface
     // close both palm ends with fans
     this.palmCapStart = v;
     const p0 = this.palmStart;
-    const pl = this.palmStart + (PALM_ROWS - 1) * PALM_AROUND;
+    const pl = this.palmStart + (ROWS - 1) * PALM_AROUND;
     for (let s = 0; s < PALM_AROUND; s++) {
       index.push(p0 + ((s + 1) % PALM_AROUND), p0 + s, v);
       index.push(pl + s, pl + ((s + 1) % PALM_AROUND), v + 1);
@@ -169,12 +172,12 @@ export class HandSilhouette {
 
     this.pos = new Float32Array(v * 3);
     const alpha = new Float32Array(v).fill(1);
-    // wrist: opaque where it meets the palm, fading over its last part
-    for (let r = 0; r < WRIST_RINGS; r++) {
-      const k = r / (WRIST_RINGS - 1);
-      const a = k < 0.3 ? 1 : Math.max(0, 1 - (k - 0.3) / 0.6);
-      for (let s = 0; s < WRIST_SIDES; s++) alpha[this.wristTube.start + r * WRIST_SIDES + s] = a * a * (3 - 2 * a);
+    // forearm: full colour up to just below the wrist, then fading into the floor
+    for (let r = 0; r < ROWS; r++) {
+      const a = Math.min(1, Math.max(0, (ROW_V[r] + 0.62) / 0.4));
+      for (let q = 0; q < PALM_AROUND; q++) alpha[this.palmStart + r * PALM_AROUND + q] = a * a * (3 - 2 * a);
     }
+    alpha[this.palmCapStart] = 0; // forearm end cap
     this.geo.setAttribute('position', new BufferAttribute(this.pos, 3));
     this.nrmArr = new Float32Array(v * 3);
     this.idx = Uint32Array.from(index);
@@ -187,13 +190,15 @@ export class HandSilhouette {
         uBase: { value: new Color(SKIN_COLOR) },
         uShadow: { value: new Color(SHADOW_COLOR) },
         uRim: { value: new Color(RIM_COLOR) },
-        uOpacity: { value: debug ? DEBUG_OPACITY : SILHOUETTE_OPACITY },
+        uFadeTo: { value: new Color(FADE_TO) },
+        uOpacity: { value: debug ? DEBUG_OPACITY : 1 },
       },
       vertexShader: VERTEX,
       fragmentShader: /* glsl */ `
         uniform vec3 uBase;
         uniform vec3 uShadow;
         uniform vec3 uRim;
+        uniform vec3 uFadeTo;
         uniform float uOpacity;
         varying vec3 vN;
         varying vec3 vV;
@@ -211,35 +216,25 @@ export class HandSilhouette {
           // restrained edge light so the curves read against the dark room
           float fres = pow(1.0 - clamp(dot(n, v), 0.0, 1.0), 2.6);
           col += uRim * fres * 0.32;
-          gl_FragColor = vec4(col, uOpacity * vA);
+          // forearm end: a fine screen-door fade (the mesh stays opaque, so it
+          // never depends on draw order), softened toward the floor colour
+          if (uOpacity >= 1.0) {
+            float n = fract(52.9829189 * fract(dot(gl_FragCoord.xy, vec2(0.06711056, 0.00583715))));
+            if (vA < n * 0.98 + 0.01) discard;
+          }
+          col = mix(uFadeTo, col, vA);
+          gl_FragColor = vec4(col, uOpacity * (uOpacity >= 1.0 ? 1.0 : vA));
           #include <colorspace_fragment>
         }`,
-      transparent: true,
-      depthWrite: false,
-      depthFunc: LessEqualDepth,
-      side: DoubleSide,
-    });
-    // depth pre-pass: only the solid part of the hand (not the fading wrist end)
-    const depthMat = new ShaderMaterial({
-      vertexShader: VERTEX, // identical program text: both passes land on the same depth
-      fragmentShader: /* glsl */ `
-        varying vec3 vN;
-        varying vec3 vV;
-        varying float vA;
-        void main() { if (vA < 0.98) discard; gl_FragColor = vec4(0.0); }`,
-      colorWrite: false,
-      depthWrite: true,
+      // Opaque, one pass, ordinary depth test: nothing here depends on two
+      // shader programs producing bit-identical depth (which some GPU drivers
+      // do not guarantee). Debug only: faint and see-through.
+      transparent: debug,
+      depthWrite: !debug,
       side: DoubleSide,
     });
     const color = new Mesh(this.geo, this.colorMat);
-    color.renderOrder = 21;
     color.frustumCulled = false;
-    if (!debug) {
-      const depth = new Mesh(this.geo, depthMat);
-      depth.renderOrder = 20;
-      depth.frustumCulled = false;
-      this.group.add(depth);
-    }
     this.group.add(color);
   }
 
@@ -256,7 +251,6 @@ export class HandSilhouette {
     for (let f = 0; f < FINGERS.length; f++) this.finger(at, FINGERS[f].chain, FINGERS[f].r, k, this.fingerTubes[f], false);
     this.finger(at, THUMB.chain, THUMB.r, k, this.thumbTube, true);
     this.palm(at, kp);
-    this.wrist(at, kp);
     (this.geo.getAttribute('position') as BufferAttribute).needsUpdate = true;
     this.normals();
   }
@@ -413,9 +407,15 @@ export class HandSilhouette {
     row[0].copy(row[1]).sub(row[2]).multiplyScalar(KNUCKLE_EDGE).add(row[1]);
     row[5].copy(row[4]).sub(row[3]).multiplyScalar(KNUCKLE_EDGE).add(row[4]);
     const halfK = row[0].distanceTo(row[5]) / 2;
+    const palmLen = Math.hypot(km.x - w.x, km.y - w.y, km.z - w.z);
+    const env0 = Math.pow(Math.sin(Math.PI * 0.3), 0.45);
     let v = this.palmStart;
-    for (let r = 0; r < PALM_ROWS; r++) {
-      const vr = r / (PALM_ROWS - 1); // 0 wrist .. 1 knuckles
+    for (let r = 0; r < ROWS; r++) {
+      const vr = ROW_V[r]; // <0 forearm, 0 wrist .. 1 knuckles
+      if (vr < 0) {
+        v = this.forearmRow(v, w, vr, palmLen, kp, env0);
+        continue;
+      }
       // end rows are thinner so the pillow rounds off
       const env = Math.pow(Math.sin(Math.PI * (0.3 + 0.62 * vr)), 0.45);
       // width grows quickly from the wrist, widest a little below the knuckles
@@ -452,7 +452,7 @@ export class HandSilhouette {
     // end caps: the centre of the first and last rows
     for (const [r, cap] of [
       [0, this.palmCapStart],
-      [PALM_ROWS - 1, this.palmCapStart + 1],
+      [ROWS - 1, this.palmCapStart + 1],
     ] as const) {
       this.v.set(0, 0, 0);
       const base = this.palmStart + r * PALM_AROUND;
@@ -466,20 +466,31 @@ export class HandSilhouette {
     }
   }
 
-  /** Wrist: an oval tube starting inside the heel of the palm, narrowing, fading out. */
-  private wrist(at: (i: number) => Vec3, kp: number): void {
-    const w = at(0);
-    let v = this.wristTube.start;
-    this.bvec.copy(this.side);
-    this.uvec.copy(this.nrm);
-    for (let r = 0; r < WRIST_RINGS; r++) {
-      const k = r / (WRIST_RINGS - 1);
-      const back = -0.004 + k * 0.056; // from just inside the palm heel to 5 cm down the arm
-      this.v.set(w.x, w.y, w.z).addScaledVector(this.fwd, -back).addScaledVector(this.nrm, -0.002);
-      const rw = (WRIST_HALF_W - 0.0005 - 0.003 * Math.min(1, k * 1.6)) * (0.9 + 0.1 * kp); // narrows into the forearm
-      const rt = (0.0112 + 0.0016 * k) * kp;
-      v = this.ring(v, this.v, rw, rt, WRIST_SIDES);
+  /**
+   * Wrist and forearm: the palm's own surface carried on past the wrist joint
+   * (same cross-section loop), easing from the flat palm heel into a rounder,
+   * slightly narrower wrist, so palm and wrist are one shape with no seam.
+   */
+  private forearmRow(v: number, w: Vec3, vr: number, palmLen: number, kp: number, env0: number): number {
+    const s = Math.min(1, -vr / 0.2);
+    const blend = s * s * (3 - 2 * s); // 0 at the wrist joint, 1 a little way down the arm
+    const hw = WRIST_HALF_W * (1 - 0.07 * blend) + 0.0025 * Math.max(0, (-vr - 0.25) / 0.37);
+    const tf = PALM_FRONT * env0 * kp + (WRIST_T * kp - PALM_FRONT * env0 * kp) * blend;
+    const tb = PALM_BACK * env0 * kp + (WRIST_T * kp - PALM_BACK * env0 * kp) * blend;
+    const ex = 0.55 + 0.25 * blend; // flat palm heel -> rounder wrist
+    for (let q = 0; q < PALM_AROUND; q++) {
+      const ang = (q / PALM_AROUND) * Math.PI * 2;
+      const ca = Math.cos(ang);
+      const sa = Math.sin(ang);
+      const a = Math.sign(ca) * Math.pow(Math.abs(ca), ex);
+      const h = sa >= 0 ? tf * Math.pow(sa, 0.8) : -tb * Math.pow(-sa, 0.8);
+      this.v.set(w.x, w.y, w.z)
+        .addScaledVector(this.fwd, vr * palmLen - 0.002)
+        .addScaledVector(this.side, a * hw)
+        .addScaledVector(this.nrm, h);
+      this.put(v++, this.v);
     }
+    return v;
   }
 }
 

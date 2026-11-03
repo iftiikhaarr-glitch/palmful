@@ -99,6 +99,8 @@ interface HandTrack {
 }
 /** Laptop emulator only: draw a dark room into the XR view (never on a Quest). */
 const EMULATED_VIEW = PARAMS.has('emulate');
+/** Laptop diagnosis only: keep IWSDK's own hand outline/occluder visible (&iwsdkhand=1). */
+const KEEP_IWSDK_HAND = PARAMS.has('iwsdkhand');
 /** Cue colours, chosen to stay distinct on dark backgrounds and in passthrough. */
 const CUE = { ready: '#2bff6e', waiting: '#ffb020', miss: '#ff3b3b' };
 const FLASH_S = 1.5;
@@ -217,6 +219,8 @@ declare global {
       freeze: (on: boolean) => string;
       /** laptop view: is the hand silhouette drawn, and the bright bones? */
       silhouette: () => { silhouette: boolean; bones: boolean };
+      /** laptop view: IWSDK's own hand visual per side (loaded from the input-profiles CDN; hidden in laptop mode) */
+      iwsdkHands: () => Record<string, { loaded: boolean; visible: boolean; meshes: number; at: number[]; inScene: boolean }>;
       twoHands: () => {
         enabled: boolean;
         engaged: string | null;
@@ -449,6 +453,19 @@ export class PalmfulSystem extends createSystem({}) {
         if (EMULATED_VIEW) this.cueHold = on ? 'frozen' : 'off';
         return this.cueHold;
       },
+      iwsdkHands: () =>
+        Object.fromEntries(
+          SIDES.map((side) => {
+            const v = this.world.input.xr.visualAdapters.hand[side].visual;
+            let meshes = 0;
+            const at = new Vector3();
+            v?.model.traverse((o) => {
+              if ((o as Mesh).isMesh) meshes++;
+            });
+            v?.model.getWorldPosition(at);
+            return [side, { loaded: !!v, visible: !!v?.model.visible, meshes, at: [+at.x.toFixed(3), +at.y.toFixed(3), +at.z.toFixed(3)], inScene: !!v?.model.parent }];
+          }),
+        ),
       silhouette: () => ({
         silhouette: !!(this.silhouette?.group.visible || this.tracks?.left.silhouette?.group.visible),
         bones: this.boneMeshes.some((b) => b.visible),
@@ -794,7 +811,26 @@ export class PalmfulSystem extends createSystem({}) {
     this.tracked = chosen !== null;
   }
 
+  /**
+   * Laptop emulator only: hide IWSDK's own hand visual (a white outline plus an
+   * invisible, depth-writing "occluder" hand meant for passthrough). Over the
+   * laptop hand model it hid most of the palm (black, with detached fingertips
+   * and a floating wrist) in real browsers. IWSDK re-shows it every frame in
+   * its input update (priority -4, before this system), so it is hidden here
+   * every frame, before rendering. Never runs on a headset. &iwsdkhand=1 keeps
+   * it, to compare.
+   */
+  private hideIwsdkHandVisuals(): void {
+    if (!EMULATED_VIEW || KEEP_IWSDK_HAND) return;
+    const hands = this.world.input.xr.visualAdapters.hand;
+    for (const side of SIDES) {
+      const visual = hands[side].visual;
+      if (visual) visual.model.visible = false;
+    }
+  }
+
   private renderJointDots(): void {
+    this.hideIwsdkHandVisuals();
     if (!SKELETON) return;
     if (this.tracks) {
       for (const t of [this.tracks.right, this.tracks.left]) this.drawSkeleton(t.joints, t.tracked, t.dots, t.bones, t.silhouette, t.side === 'left');

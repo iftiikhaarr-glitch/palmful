@@ -26,8 +26,26 @@ const check = (desc, ok, detail = '') => {
   if (!ok) failures++;
 };
 
-const browser = await chromium.launch({ args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader'] });
+// ignoreDefaultArgs: show classic scrollbars, as desktop browsers do (headless hides them)
+const browser = await chromium.launch({ ignoreDefaultArgs: ['--hide-scrollbars'], args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader'] });
 const page = await browser.newPage({ ignoreHTTPSErrors: true, viewport: { width: W, height: H } });
+// IWSDK draws its own hand (outline + an invisible depth "occluder") from the
+// WebXR input-profiles CDN. Sandboxed CI often cannot reach that CDN, so the
+// bug it caused (the laptop hand hidden behind the occluder) never showed.
+// PROFILES_DIR=<unpacked @webxr-input-profiles/assets>/dist/profiles serves
+// those files locally so the run matches a real browser.
+const PROFILES = 'https://cdn.jsdelivr.net/npm/@webxr-input-profiles/assets@1.0/dist/profiles/';
+let profileHits = 0;
+if (process.env.PROFILES_DIR) {
+  const path = await import('node:path');
+  await page.route((u) => u.href.startsWith(PROFILES), (route) => {
+    const rel = decodeURIComponent(route.request().url().slice(PROFILES.length).split('?')[0]);
+    const file = path.resolve(process.env.PROFILES_DIR, rel);
+    if (!file.startsWith(path.resolve(process.env.PROFILES_DIR)) || !fs.existsSync(file)) return route.fulfill({ status: 404 });
+    profileHits++;
+    return route.fulfill({ status: 200, body: fs.readFileSync(file), contentType: file.endsWith('.json') ? 'application/json' : 'model/gltf-binary' });
+  });
+}
 const errors = [];
 page.on('pageerror', (e) => errors.push(String(e)));
 const press = async (k, n = 1) => { for (let i = 0; i < n; i++) { await page.keyboard.press(k); await page.waitForTimeout(40); } };
@@ -170,6 +188,18 @@ try {
   await angled('fist');
   await press('F');
   await page.waitForTimeout(600);
+  if (process.env.PROFILES_DIR) {
+    // IWSDK's own hand (outline + depth occluder) loaded, but hidden in laptop mode
+    const ih = await page.evaluate(() => window.__palmful.iwsdkHands());
+    const keep = extra.includes('iwsdkhand');
+    check(`IWSDK hand visual loaded and ${keep ? 'kept (diagnosis)' : 'hidden'} in laptop mode`, ih.right.loaded && ih.right.visible === keep, JSON.stringify(ih));
+  }
+  // the help panel stays fully inside the window
+  const panel = await page.evaluate(() => {
+    const r = document.querySelector('#laptop-panel').getBoundingClientRect();
+    return { l: r.left, t: r.top, r: r.right, b: r.bottom, w: innerWidth, h: innerHeight, sx: scrollX, sy: scrollY };
+  });
+  check('help panel fully inside the window, page not scrolled', panel.l >= 8 && panel.t >= 0 && panel.r <= panel.w && panel.b <= panel.h && !panel.sx && !panel.sy, JSON.stringify(panel));
   check('no page errors', errors.length === 0, errors.join(' | '));
   ok = failures === 0;
 } catch (e) {
@@ -178,5 +208,6 @@ try {
 } finally {
   await browser.close();
 }
+if (process.env.PROFILES_DIR) log('     ', 'IWSDK hand-profile files served locally:', profileHits);
 log(ok ? 'ALL HAND-POSE CHECKS PASSED' : `HAND-POSE CHECKS FAILED (${failures})`);
 process.exit(ok ? 0 : 1);

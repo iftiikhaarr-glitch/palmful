@@ -151,6 +151,26 @@ export async function installLaptopEmulator(): Promise<void> {
     '</div>' +
     '<code id="laptop-status" style="opacity:.8"></code>';
   document.body.appendChild(panel);
+  // Keep the help panel fully on screen: the page itself never scrolls in
+  // laptop mode (arrow keys and Space are game keys), and if the browser's
+  // visible area is shifted (touchpad pinch-zoom), the panel follows it.
+  document.documentElement.style.overflow = 'hidden';
+  document.body.style.overflow = 'hidden';
+  document.body.style.margin = '0';
+  window.addEventListener('scroll', () => {
+    if (window.scrollX || window.scrollY) window.scrollTo(0, 0);
+  });
+  const vv = window.visualViewport;
+  if (vv) {
+    const follow = () => {
+      // offsets are 0 unless pinch-zoomed; keep the panel's bottom-left corner in view
+      const dx = vv.offsetLeft;
+      const dy = vv.offsetTop + vv.height - window.innerHeight;
+      panel.style.transform = dx || dy ? `translate(${dx}px, ${dy}px)` : '';
+    };
+    vv.addEventListener('resize', follow);
+    vv.addEventListener('scroll', follow);
+  }
   const status = panel.querySelector('#laptop-status') as HTMLElement;
   const startBtn = panel.querySelector('#laptop-start') as HTMLButtonElement;
   const helpBody = panel.querySelector('#laptop-help-body') as HTMLElement;
@@ -227,6 +247,8 @@ export async function installLaptopEmulator(): Promise<void> {
 
   window.addEventListener('keydown', async (e) => {
     if (!started) return;
+    // stop the browser scrolling the page on game keys, before any await
+    if (e.key === ' ' || e.key.startsWith('Arrow')) e.preventDefault();
     let handled = true;
     if (CATCH) {
       switch (e.key) {
