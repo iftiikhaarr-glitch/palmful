@@ -69,6 +69,7 @@ import {
   stepCatch,
 } from './palm/catch-sim.js';
 import { type Vec3, v3 } from './palm/math.js';
+import { chooseHand, type Engagement, type HandView, makeEngagement, type Side } from './palm/two-hand.js';
 
 const PARAMS = new URLSearchParams(location.search);
 const DEBUG = PARAMS.has('debug');
@@ -76,6 +77,18 @@ const DEBUG = PARAMS.has('debug');
 const SKELETON = PARAMS.has('skeleton') || PARAMS.has('emulate');
 /** Experimental catch mode (?catch=1); the three-bloom game is the default. */
 export const MODE: 'bloom' | 'catch' = PARAMS.has('catch') ? 'catch' : 'bloom';
+/** Optional two-hand catching (?catch=1&hands=2): either open palm may catch. */
+export const TWO_HANDS = MODE === 'catch' && PARAMS.get('hands') === '2';
+/** One tracked hand in two-hand mode: its joints, palm frame, filters and drawing. */
+interface HandTrack {
+  side: Side;
+  joints: HandJoints;
+  frame: PalmFrame;
+  filters: OneEuro3[];
+  tracked: boolean;
+  dots: Mesh[];
+  bones: Mesh[];
+}
 /** Laptop emulator only: draw a dark room into the XR view (never on a Quest). */
 const EMULATED_VIEW = PARAMS.has('emulate');
 /** Cue colours, chosen to stay distinct on dark backgrounds and in passthrough. */
@@ -183,6 +196,14 @@ declare global {
       /** true only in the laptop emulator: a dark room is drawn into the XR view */
       hasBackdrop: boolean;
       handSize: () => string;
+      twoHands: () => {
+        enabled: boolean;
+        engaged: string | null;
+        right: boolean;
+        left: boolean;
+        flowers: Record<string, string>;
+        centers: Record<string, Vec3 | null>;
+      };
       /** screen positions (0..1, top-left origin) of key objects, for contrast tests */
       screenPoints: () => Record<string, Array<[number, number]>>;
     };
@@ -209,6 +230,9 @@ export class PalmfulSystem extends createSystem({}) {
   private flowers: Partial<Record<FingerName, Group>> = {};
   private jointDots: Mesh[] = [];
   private boneMeshes: Mesh[] = [];
+  private tracks: Record<Side, HandTrack> | null = null;
+  private eng: Engagement = makeEngagement();
+  private flowerSide: Partial<Record<FingerName, Side>> = {};
   private handSize: HandSize = 'S';
   private boneDir = new Vector3();
   private seed!: Mesh;
@@ -338,6 +362,7 @@ export class PalmfulSystem extends createSystem({}) {
       }
     }
     if (EMULATED_VIEW) this.buildEmulatorBackdrop();
+    if (TWO_HANDS) this.buildTracks();
     this.root.visible = false;
 
     // The seed waits in front of you before Mote exists.
@@ -371,6 +396,17 @@ export class PalmfulSystem extends createSystem({}) {
       layout: () => this.layoutCheck(),
       hasBackdrop: this.root.getObjectByName('emulator-backdrop') !== undefined,
       handSize: () => this.handSize,
+      twoHands: () => ({
+        enabled: TWO_HANDS,
+        engaged: this.eng.side,
+        right: this.tracks?.right.tracked ?? false,
+        left: this.tracks?.left.tracked ?? false,
+        flowers: { ...this.flowerSide } as Record<string, string>,
+        centers: {
+          right: this.tracks?.right.tracked ? { ...this.tracks.right.frame.center } : null,
+          left: this.tracks?.left.tracked ? { ...this.tracks.left.frame.center } : null,
+        },
+      }),
       screenPoints: () => this.screenPoints(),
     };
   }
@@ -486,7 +522,7 @@ export class PalmfulSystem extends createSystem({}) {
     }
 
     const wasTracked = this.tracked;
-    this.tracked = this.trackHand(frame, ref, session, delta);
+    this.tracked = TWO_HANDS ? this.trackBoth(frame, ref, session, delta) : this.trackHand(frame, ref, session, delta);
     if (this.tracked) this.metrics.trackedFrames++;
     if (wasTracked && !this.tracked) {
       this.metrics.lossEvents++;
@@ -595,36 +631,116 @@ export class PalmfulSystem extends createSystem({}) {
     return false;
   }
 
-  private readJoints(hand: XRHand, frame: XRFrame, ref: XRReferenceSpace, dt: number): boolean {
+  private readJoints(
+    hand: XRHand,
+    frame: XRFrame,
+    ref: XRReferenceSpace,
+    dt: number,
+    joints: HandJoints = this.joints,
+    filters: OneEuro3[] = this.filters,
+  ): boolean {
     for (let i = 0; i < this.keys.length; i++) {
       const space = hand.get(this.keys[i].name as XRHandJoint);
       const pose = space ? frame.getJointPose?.(space, ref) : undefined;
       if (!pose) return false;
       const p = pose.transform.position;
-      const out = this.keys[i].get(this.joints);
+      const out = this.keys[i].get(joints);
       out.x = p.x;
       out.y = p.y;
       out.z = p.z;
-      if (dt > 0) this.filters[i].filter(out, dt, out);
+      if (dt > 0) filters[i].filter(out, dt, out);
     }
     return true;
   }
 
+  // ---------- two-hand mode (?catch=1&hands=2) ----------
+
+  private buildTracks(): void {
+    // The right track reuses the one-hand objects; the left gets its own.
+    const mk = (side: Side, reuse: boolean): HandTrack => {
+      const t: HandTrack = {
+        side,
+        joints: reuse ? this.joints : makeHandJoints(),
+        frame: reuse ? this.frame : makePalmFrame(),
+        filters: reuse ? this.filters : this.keys.map(() => new OneEuro3(1.2, 6, 1)),
+        tracked: false,
+        dots: reuse ? this.jointDots : [],
+        bones: reuse ? this.boneMeshes : [],
+      };
+      if (!reuse && SKELETON) {
+        const d0 = this.jointDots[0];
+        const b0 = this.boneMeshes[0];
+        for (let i = 0; i < this.keys.length; i++) {
+          const m = new Mesh(d0.geometry, d0.material);
+          t.dots.push(m);
+          this.root.add(m);
+        }
+        for (let i = 0; i < BONES.length; i++) {
+          const m = new Mesh(b0.geometry, b0.material);
+          t.bones.push(m);
+          this.root.add(m);
+        }
+      }
+      return t;
+    };
+    this.tracks = { right: mk('right', true), left: mk('left', false) };
+  }
+
+  /** Read both hands into their own tracks. Returns true if either is tracked. */
+  private trackBoth(frame: XRFrame, ref: XRReferenceSpace, session: XRSession, dt: number): boolean {
+    const tracks = this.tracks!;
+    const seen: Partial<Record<Side, XRHand>> = {};
+    for (const src of session.inputSources) {
+      if (src.hand && (src.handedness === 'left' || src.handedness === 'right')) seen[src.handedness] = src.hand;
+    }
+    for (const side of ['right', 'left'] as const) {
+      const t = tracks[side];
+      const h = seen[side];
+      t.tracked = !!h && this.readJoints(h, frame, ref, dt, t.joints, t.filters) && computePalmFrame(t.joints, side, t.frame);
+      if (!t.tracked) for (const f of t.filters) f.reset();
+    }
+    return tracks.right.tracked || tracks.left.tracked;
+  }
+
+  /** Two-hand mode: choose the hand that feeds the catch; point this.joints/frame at it. */
+  private pickCatchHand(dt: number): void {
+    const tracks = this.tracks!;
+    const views: HandView[] = (['right', 'left'] as const).map((side) => {
+      const t = tracks[side];
+      return { side, tracked: t.tracked, center: t.frame.center, normal: t.frame.normal, cup: t.tracked ? cupAmount(t.joints, t.frame) : 0 };
+    });
+    const chosen = chooseHand(views, this.cst!, this.eng, dt);
+    if (chosen) {
+      this.joints = tracks[chosen.side].joints;
+      this.frame = tracks[chosen.side].frame;
+      this.metrics.handedness = chosen.side;
+    }
+    this.tracked = chosen !== null;
+  }
+
   private renderJointDots(): void {
     if (!SKELETON) return;
-    for (let i = 0; i < this.jointDots.length; i++) {
-      const p = this.keys[i].get(this.joints);
-      this.jointDots[i].position.set(p.x, p.y, p.z);
-      this.jointDots[i].visible = this.tracked;
+    if (this.tracks) {
+      for (const t of [this.tracks.right, this.tracks.left]) this.drawSkeleton(t.joints, t.tracked, t.dots, t.bones);
+    } else {
+      this.drawSkeleton(this.joints, this.tracked, this.jointDots, this.boneMeshes);
     }
+  }
+
+  private drawSkeleton(joints: HandJoints, tracked: boolean, dots: Mesh[], bones: Mesh[]): void {
     const size = HAND_SIZES[this.handSize];
-    for (const d of this.jointDots) d.scale.setScalar(size.joint);
-    for (let n = 0; n < this.boneMeshes.length; n++) {
-      const b = this.boneMeshes[n];
-      b.visible = this.tracked;
-      if (!b.visible) continue;
-      const p = this.keys[BONES[n][0]].get(this.joints);
-      const q = this.keys[BONES[n][1]].get(this.joints);
+    for (let i = 0; i < dots.length; i++) {
+      const p = this.keys[i].get(joints);
+      dots[i].position.set(p.x, p.y, p.z);
+      dots[i].visible = tracked;
+      dots[i].scale.setScalar(size.joint);
+    }
+    for (let n = 0; n < bones.length; n++) {
+      const b = bones[n];
+      b.visible = tracked;
+      if (!tracked) continue;
+      const p = this.keys[BONES[n][0]].get(joints);
+      const q = this.keys[BONES[n][1]].get(joints);
       this.boneDir.set(q.x - p.x, q.y - p.y, q.z - p.z);
       const len = this.boneDir.length();
       b.position.set((p.x + q.x) / 2, (p.y + q.y) / 2, (p.z + q.z) / 2);
@@ -721,9 +837,9 @@ export class PalmfulSystem extends createSystem({}) {
     this.shadow.lookAt(this.tmp);
   }
 
-  private tipPos(f: FingerName, lift: number, out: Vector3): Vector3 {
-    const p = this.frame.path[f][3];
-    const n = this.frame.normal;
+  private tipPos(f: FingerName, lift: number, out: Vector3, fr: PalmFrame = this.frame): Vector3 {
+    const p = fr.path[f][3];
+    const n = fr.normal;
     return out.set(p.x + n.x * lift, p.y + n.y * lift, p.z + n.z * lift);
   }
 
@@ -735,20 +851,24 @@ export class PalmfulSystem extends createSystem({}) {
       const pulse = 1 + Math.sin(time * 5) * 0.25 + (this.st.dwellT > 0 ? this.st.dwellT * 1.5 : 0);
       this.beacon.scale.setScalar(pulse);
     }
-    const n = this.frame.normal;
     for (const f of FINGERS) {
       const g = this.flowers[f];
       if (!g) continue;
-      g.visible = this.tracked;
+      // two-hand mode: each flower stays on the hand that caught its seed
+      const side = this.flowerSide[f];
+      const track = side && this.tracks ? this.tracks[side] : null;
+      const fr = track ? track.frame : this.frame;
+      const n = fr.normal;
+      g.visible = track ? track.tracked : this.tracked;
       this.flowerAge[f] = (this.flowerAge[f] ?? 0) + delta;
       const age = this.flowerAge[f]!;
       // grow with a little overshoot, then keep a gentle sway
       const grow = age < 0.7 ? 1.25 * Math.sin((age / 0.7) * (Math.PI / 2)) : 1 + Math.sin(age * 2) * 0.03;
       const celebrate = done ? 1 + Math.max(0, Math.sin(time * 6)) * 0.15 : 1;
       g.scale.setScalar(Math.max(0.001, grow * celebrate));
-      this.tipPos(f, 0, g.position);
+      this.tipPos(f, 0, g.position, fr);
       g.up.set(n.x, n.y, n.z);
-      this.tmp.set(g.position.x + this.frame.fwd.x, g.position.y + this.frame.fwd.y, g.position.z + this.frame.fwd.z);
+      this.tmp.set(g.position.x + fr.fwd.x, g.position.y + fr.fwd.y, g.position.z + fr.fwd.z);
       g.lookAt(this.tmp);
     }
   }
@@ -902,9 +1022,12 @@ export class PalmfulSystem extends createSystem({}) {
       if (Math.abs(p.x) > 1 || Math.abs(p.y) > 1) return;
       (out[name] ??= []).push([(p.x + 1) / 2, (1 - p.y) / 2]);
     };
-    if (this.tracked) {
+    const jointSets = this.tracks
+      ? [this.tracks.right, this.tracks.left].filter((t) => t.tracked).map((t) => t.joints)
+      : this.tracked ? [this.joints] : [];
+    for (const js of jointSets) {
       for (const k of this.keys) {
-        const j = k.get(this.joints);
+        const j = k.get(js);
         add('joint', this.root.localToWorld(new Vector3(j.x, j.y, j.z)));
       }
     }
@@ -1028,6 +1151,7 @@ export class PalmfulSystem extends createSystem({}) {
       window.__palmful!.catch = this.cst;
     }
     const cst = this.cst;
+    if (TWO_HANDS) this.pickCatchHand(dt);
     // Until a palm is first offered, keep the waiting seed (and the progress
     // display) in front of the current view; the first head poses are unsettled.
     if (this.phase === 'await' && cst.seed === 'waiting') {
@@ -1044,11 +1168,15 @@ export class PalmfulSystem extends createSystem({}) {
     else this.phaseT += dt;
 
     // Session over: a fist held briefly replays, resetting every count.
-    if (this.phase === 'done' && this.tracked && fingertipReach(this.joints) < FIST_REACH) {
+    const fist = this.tracks
+      ? (['right', 'left'] as const).some((sd) => this.tracks![sd].tracked && fingertipReach(this.tracks![sd].joints) < FIST_REACH)
+      : this.tracked && fingertipReach(this.joints) < FIST_REACH;
+    if (this.phase === 'done' && fist) {
       this.fistT += dt;
       if (this.fistT > 0.8) {
         this.clearFlowers();
         resetCatch(cst, this.spawnFor);
+        this.eng = makeEngagement();
         this.fistT = 0;
         this.metrics.restarts++;
         this.setPhase('play');
@@ -1069,6 +1197,7 @@ export class PalmfulSystem extends createSystem({}) {
         break;
       case 'catch':
         this.growFlower(FLOWER_FOR_SEED[kindBefore]);
+        if (this.tracks && this.eng.side) this.flowerSide[FLOWER_FOR_SEED[kindBefore]] = this.eng.side; // stays on the hand that caught it
         this.chime(cst.catches >= CATCHES_TO_WIN ? 'final' : 'bloom');
         this.flash = { color: CUE.ready, t: 0, x: cst.pos.x, y: cst.pos.y, z: cst.pos.z, grow: true };
         if (this.metrics.firstBloomS === null) this.metrics.firstBloomS = this.metrics.sessionS;
@@ -1258,6 +1387,7 @@ export class PalmfulSystem extends createSystem({}) {
   }
 
   private clearFlowers(): void {
+    this.flowerSide = {};
     for (const f of FINGERS) {
       const g = this.flowers[f];
       if (g) {
@@ -1342,7 +1472,7 @@ export class PalmfulSystem extends createSystem({}) {
         : { title: 'Hold out your hand', sub: 'palm up, under the seed' };
     }
     if (this.phase === 'done') return null; // the progress display becomes the completion card
-    if (!this.tracked) return { title: 'Bring your hand back', sub: '' };
+    if (!this.tracked) return { title: TWO_HANDS && this.eng.side ? `Bring your ${this.eng.side} hand back` : 'Bring your hand back', sub: '' };
     switch (cst.seed) {
       case 'caught':
         return null; // progress display updates instead

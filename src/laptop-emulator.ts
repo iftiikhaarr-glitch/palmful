@@ -6,6 +6,7 @@
 const PARAMS = new URLSearchParams(location.search);
 export const EMULATE = PARAMS.has('emulate');
 const CATCH = PARAMS.has('catch');
+const TWO = CATCH && PARAMS.get('hands') === '2';
 const MOVE = 0.02; // metres per key press in catch mode
 /** Same key as palmful-system.ts: the laptop-only hand display size. */
 const HAND_SIZE_KEY = 'palmful.laptopHandSize';
@@ -49,6 +50,15 @@ export async function installLaptopEmulator(): Promise<void> {
   let started = false;
   let cupped = false;
   const off = { x: 0, y: 0, z: 0 }; // catch mode: hand offset from its start
+  // Two-hand mode: the keyboard controls one hand at a time (L switches);
+  // each hand keeps its own position, cup and visibility.
+  let ctrl: 'right' | 'left' = 'right';
+  type HandKeys = { off: { x: number; y: number; z: number }; cupped: boolean; hidden: boolean; fist: boolean; roll: number };
+  const saved: Record<'right' | 'left', HandKeys> = {
+    right: { off: { x: 0, y: 0, z: 0 }, cupped: false, hidden: true, fist: false, roll: 0 },
+    left: { off: { x: 0, y: 0, z: 0 }, cupped: false, hidden: true, fist: false, roll: 0 },
+  };
+  const LEFT_SHIFT = -0.15; // the left hand starts 15 cm to the left of the right hand
 
   const call = (m: string, p?: Record<string, unknown>) =>
     remote.dispatch(m, p).catch((e: unknown) => console.warn('[laptop]', m, e));
@@ -56,16 +66,17 @@ export async function installLaptopEmulator(): Promise<void> {
   const applyHand = async () => {
     if (!started) return;
     const o = handDirections(pitch, roll);
+    const baseX = WRIST.x + (ctrl === 'left' ? LEFT_SHIFT : 0);
     await call('set_transform', {
-      device: 'hand-right',
+      device: `hand-${ctrl}`,
       anchor: 'wrist',
-      position: { x: WRIST.x + off.x, y: WRIST.y + off.y, z: WRIST.z + off.z },
+      position: { x: baseX + off.x, y: WRIST.y + off.y, z: WRIST.z + off.z },
       orientation: { fingers: o.fingers, palm: o.palm },
     });
     const where = CATCH
       ? `x ${(off.x * 100).toFixed(0)} cm  fwd ${(-off.z * 100).toFixed(0)} cm  up ${(off.y * 100).toFixed(0)} cm${cupped ? '  CUPPED' : ''}${roll ? '  TILTED' : ''}`
       : `pitch ${pitch}°  roll ${roll}°`;
-    status.textContent = `${where}${fist ? '  FIST' : ''}${hidden ? '  HAND HIDDEN (Space to raise)' : ''}`;
+    status.textContent = `${TWO ? `${ctrl.toUpperCase()} hand: ` : ''}${where}${fist ? '  FIST' : ''}${hidden ? '  HAND HIDDEN (Space to raise)' : ''}`;
   };
 
   // ---- overlay UI ----
@@ -84,6 +95,7 @@ export async function installLaptopEmulator(): Promise<void> {
     '<div id="laptop-help-body">' +
     (CATCH
       ? '<b>Catch mode</b>: catch the falling seed.<br>' +
+        (TWO ? '<b>Two hands</b>: <b>L</b> switches which hand the keys control.<br>' : '') +
         '<span><b>Space</b> raise hand, palm up (again: back to start)<br><b>← →</b> move hand left / right<br><b>↑ ↓</b> move hand forward / back<br><b>W S</b> move hand up / down<br><b>C</b> cup / open the hand<br><b>1 2 3</b> test: pick gold / blue / pink seed<br><b>T</b> tip palm sideways (spill) &nbsp; <b>F</b> fist &nbsp; <b>H</b> lower hand<br>' +
         'Move under the seed (ring turns green), let it land, then press <b>C</b>.</span><br>'
       : '<span><b>Space</b> raise hand, palm up (again: level it)<br><b>↑ ↓</b> tip fingertips down / up<br><b>← →</b> roll toward pinky / index<br><b>F</b> fist &nbsp; <b>H</b> lower hand</span><br>') +
@@ -193,7 +205,7 @@ export async function installLaptopEmulator(): Promise<void> {
         case 'C':
           cupped = !cupped;
           fist = false;
-          await call('set_hand_pose', { device: 'hand-right', poseId: cupped ? 'cup' : 'flat' });
+          await call('set_hand_pose', { device: `hand-${ctrl}`, poseId: cupped ? 'cup' : 'flat' });
           break;
         case 't':
         case 'T':
@@ -215,19 +227,31 @@ export async function installLaptopEmulator(): Promise<void> {
           roll = 0;
           if (hidden) {
             hidden = false;
-            await call('set_connected', { device: 'hand-right', connected: true });
+            await call('set_connected', { device: `hand-${ctrl}`, connected: true });
+            if (ctrl === 'left') await call('set_hand_pose', { device: 'hand-left', poseId: cupped ? 'cup' : 'flat' });
           }
           break;
         case 'f':
         case 'F':
           fist = !fist;
           cupped = false;
-          await call('set_hand_pose', { device: 'hand-right', poseId: fist ? 'fist' : 'flat' });
+          await call('set_hand_pose', { device: `hand-${ctrl}`, poseId: fist ? 'fist' : 'flat' });
           break;
         case 'h':
         case 'H':
           hidden = !hidden;
-          await call('set_connected', { device: 'hand-right', connected: !hidden });
+          await call('set_connected', { device: `hand-${ctrl}`, connected: !hidden });
+          break;
+        case 'l':
+        case 'L':
+          if (!TWO) {
+            handled = false;
+            break;
+          }
+          saved[ctrl] = { off: { ...off }, cupped, hidden, fist, roll };
+          ctrl = ctrl === 'right' ? 'left' : 'right';
+          ({ cupped, hidden, fist, roll } = saved[ctrl]);
+          Object.assign(off, saved[ctrl].off);
           break;
         default:
           handled = false;

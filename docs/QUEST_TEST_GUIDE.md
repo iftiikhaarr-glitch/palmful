@@ -58,6 +58,22 @@ your real hand, so it lines up with your palm. Nothing in the headset enlarges o
 shifts the drawn hand. (The laptop's Small / Medium / Large setting only changes
 how thick the emulated hand is drawn and does not exist on the Quest.)
 
+## 3b. Part C (optional): two-hand catch (2 minutes)
+
+Only if Parts A and B went smoothly. Open
+**`https://iftiikhaarr-glitch.github.io/palmful/?catch=1&hands=2&debug=1`**,
+pinch **Enter AR**, and hold both hands out, palm up.
+
+| Time | Do this |
+|---|---|
+| 0:00–1:00 | Catch the gold seed (left lane) with your **left** hand and the blue seed (right lane) with your **right** hand. Stay seated; no wide arm moves. |
+| 1:00–1:30 | When a seed rests in one palm, hide **that** hand behind your back for 3 s while the other hand stays in view. The seed must wait for its hand, not jump to the other one. |
+| 1:30–2:00 | Finish the third seed with either hand. Check each flower stayed on the hand that caught it. |
+
+Fail if a seed ever jumps between hands, a catch happens on the wrong hand,
+or the two hands confuse tracking (hands swapped, flicker). Two-hand play stays
+optional either way; one-hand play is never affected.
+
 ## 4. Send back
 
 1. **Both videos**, uncut (Meta Horizon phone app → Gallery, or the headset's
@@ -118,6 +134,10 @@ Decide from the evidence above, in this order:
 | Fail | Pass | **Catch**. It needs only a coarse palm position and a cup, not a creature that looks glued to the skin. |
 | Pass | Pass | The one the tester would rather play again. If there's no preference, **Bloom**: it is the more original idea, while catching falling objects is a familiar VR mechanic. |
 | Fail | Fail | Neither. Switch to **Leaf** (Mote rides a leaf held in a pinch). |
+
+Part C (two hands) never decides the mode. If it passes, two-hand play can
+stay available as an option in the kept Catch mode. If it fails, it is simply
+left off (`&hands=2` is never shown to players).
 
 A cup-separation result in the Catch "Marginal" or "Fail" column with clean
 play otherwise means we change `CUP_ON`, the cup threshold (now 0.42), using the

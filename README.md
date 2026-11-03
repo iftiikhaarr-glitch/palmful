@@ -63,7 +63,17 @@ comes down on the right, pink in the centre. 3/3 → "All three caught". If you
 miss, the same seed comes back and your earlier catches stay. F, then F again →
 everything resets.
 
-Add `&debug=1` to either for the metrics panel. Laptop mode uses Meta's IWER
+### Optional two-hand catch: https://iftiikhaarr-glitch.github.io/palmful/?emulate=1&catch=1&hands=2
+
+Same game, and still fully playable with one hand. When both hands are tracked,
+either open, palm-up hand may catch. The keys above move one hand at a time; **L**
+switches between the right and left hand (Space raises the hand you're
+controlling). A seed resting in a palm stays with that hand. If that hand is
+lost, the seed waits for it. A falling seed pauses when the hand under it is
+lost, and goes to the other hand only after 3 s. Each flower stays on the hand
+that caught it. Two-hand play is only on with `&hands=2`.
+
+Add `&debug=1` to any of these for the metrics panel. Laptop mode uses Meta's IWER
 emulator and draws a dark room into the emulated view (only with `?emulate`;
 the real Quest AR view is never covered), with dots and bones in place of a hand.
 **Emulator results do not show real-hand tracking, comfort, or Quest frame rate.** It shows that the game logic works; it does
@@ -85,6 +95,7 @@ npm run build     # production build in dist/
 npx vite preview --port 4173 &   # serves dist/ at https://localhost:4173
 npm run e2e -- https://localhost:4173/ .   # plays a full bloom session headlessly
 node test/catch-e2e.mjs https://localhost:4173/ .   # plays a full catch session
+node test/twohand-e2e.mjs https://localhost:4173/ .   # two-hand catch session
 node test/landing-e2e.mjs https://localhost:4173/ .   # 2D landing; backdrop only with ?emulate
 node test/contrast-check.mjs https://localhost:4173/ .   # laptop view: object contrast >= 3:1
 npm run dev       # IWSDK dev server + emulator in a managed browser
@@ -97,7 +108,8 @@ npm run dev       # IWSDK dev server + emulator in a managed browser
 src/palm/math.ts           allocation-free vector helpers
 src/palm/hand-frame.ts     WebXR joints -> palm frame + finger paths, One-Euro filter
 src/palm/creature-sim.ts   friction sliding, finger walking, bloom (pure, tested)
-src/palm/catch-sim.ts      catch mode: falling seed, landing, cup, miss (pure, tested)
+src/palm/catch-sim.ts      catch mode: three seeds, landing, cup, miss (pure, tested)
+src/palm/two-hand.ts       optional two-hand rules: which hand catches (pure, tested)
 src/palmful-system.ts      IWSDK system: reads joints, renders, metrics, restart
 src/laptop-emulator.ts     ?emulate=1 laptop mode (IWER + keyboard hand)
 src/landing.ts             2D page: Enter AR button, or where to play

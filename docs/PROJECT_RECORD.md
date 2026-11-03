@@ -84,6 +84,18 @@ Keep this file current; it is how work continues across sessions.
   - The help panel sits bottom-left, above the emulator view so it is clickable, and can be hidden.
 - **Tests:** 18 catch unit tests. The catch session test runs 38 checks: every colour, keys 1/2/3, a miss with progress kept, tracking loss, cue pixels, completion layout, fist reset, hand sizes and the saved setting.
 
+## Optional two-hand catch (3 Nov 2026, branch `two-hands`, `?catch=1&hands=2`)
+
+- Pure rules in `src/palm/two-hand.ts`:
+  - The hand nearest the falling seed is engaged; switching to the other hand needs it to be 3 cm nearer.
+  - A resting seed belongs to its holder; if the holder is lost, the seed pauses indefinitely.
+  - A falling seed pauses when its engaged hand is lost and is released only after 3 s.
+  - With one hand tracked, play is identical to one-hand.
+- Each hand has its own joints, filters, palm frame and catch area. Flowers remember the hand that caught them.
+- **Laptop:** L switches which hand the keys control.
+- **Tests:** 7 unit tests; breaking any one of four rules made a test fail. The two-hand session test runs 17 checks.
+- Gated behind `&hands=2` and in its own pull request, so it can be dropped without touching one-hand play.
+
 ## Not verified (needs a headset): see `docs/DEVICE_TEST.md`
 
 ## Open issues
