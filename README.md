@@ -5,11 +5,11 @@ the glowing fingertip and that fingertip blooms. Hands only, seated, built for
 Meta Quest with the Immersive Web SDK (WebXR), for the Meta VR Start Developer
 Competition 2026 (Gaming track, New Experience).
 
-**Status: feasibility prototype.** One complete session (three blooms, fist to
-restart) is verified by unit tests and an automated end-to-end run in emulated
-WebXR. **Nothing has been tested on a headset yet.** See
-`docs/DEVICE_TEST.md` for what is and isn't verified and the criteria for
-abandoning the concept.
+**Status: prototype, emulator-tested only.** Bloom (default), catch
+(`?catch=1`) and optional two-hand catch (`?catch=1&hands=2`) each pass unit
+tests and full-session runs in emulated WebXR. **Nothing has been tested on a
+headset yet.** [`docs/QUEST_TEST_GUIDE.md`](docs/QUEST_TEST_GUIDE.md) lists what
+still needs a Quest 3/3S and the pass/fail criteria.
 
 ## Try it on a laptop (no headset)
 
@@ -60,8 +60,10 @@ One full session: Space → the gold seed glows, then drifts down. Hold ← (and
 ↑/↓ if needed) until the ring under it turns green. When it lands in the open
 palm, press C → "Gold 1/1", a gold flower grows; press C again to open. Blue
 comes down on the right, pink in the centre. 3/3 → "All three caught". If you
-miss, the same seed comes back and your earlier catches stay. F, then F again →
-everything resets.
+miss, the same seed comes back and your earlier catches stay. To play again,
+press C to open your hand, then F (a fist) → everything resets; F again opens it.
+A fist straight from the catching cup does nothing: the hand must open first,
+so the last catch can't restart the game by accident.
 
 ### Optional two-hand catch: https://iftiikhaarr-glitch.github.io/palmful/?emulate=1&catch=1&hands=2
 
@@ -76,8 +78,8 @@ that caught it. Two-hand play is only on with `&hands=2`.
 Add `&debug=1` to any of these for the metrics panel. Laptop mode uses Meta's IWER
 emulator and draws a dark room into the emulated view (only with `?emulate`;
 the real Quest AR view is never covered), with dots and bones in place of a hand.
-**Emulator results do not show real-hand tracking, comfort, or Quest frame rate.** It shows that the game logic works; it does
-**not** show tracking quality, cup detection on real hands, or Quest performance.
+It shows that the game logic works. **Emulator results do not show real-hand
+tracking, cup detection on real hands, comfort, or Quest frame rate.**
 
 ## Test on a Quest 3 / 3S
 

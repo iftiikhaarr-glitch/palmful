@@ -115,6 +115,7 @@ function readHandSize(): HandSize {
   }
 }
 const UP = new Vector3(0, 1, 0);
+const SIDES = ['right', 'left'] as const;
 /** Joint pairs drawn as bones in the laptop view (indices into this.keys). */
 // keys: 0 wrist, 1 pinky knuckle, 2-5 index, 6-9 middle, 10-13 ring
 const BONES: Array<[number, number]> = [
@@ -196,6 +197,7 @@ declare global {
       /** true only in the laptop emulator: a dark room is drawn into the XR view */
       hasBackdrop: boolean;
       handSize: () => string;
+      restartArmed: () => boolean;
       twoHands: () => {
         enabled: boolean;
         engaged: string | null;
@@ -233,6 +235,11 @@ export class PalmfulSystem extends createSystem({}) {
   private tracks: Record<Side, HandTrack> | null = null;
   private eng: Engagement = makeEngagement();
   private flowerSide: Partial<Record<FingerName, Side>> = {};
+  private restartArmed = false;
+  /** One-hand mode uses `right` for its single hand. */
+  private armed: Record<Side, boolean> = { right: false, left: false };
+  /** Reused every frame in two-hand mode (no per-frame allocation). */
+  private views: HandView[] = [];
   private handSize: HandSize = 'S';
   private boneDir = new Vector3();
   private seed!: Mesh;
@@ -396,6 +403,7 @@ export class PalmfulSystem extends createSystem({}) {
       layout: () => this.layoutCheck(),
       hasBackdrop: this.root.getObjectByName('emulator-backdrop') !== undefined,
       handSize: () => this.handSize,
+      restartArmed: () => this.restartArmed,
       twoHands: () => ({
         enabled: TWO_HANDS,
         engaged: this.eng.side,
@@ -545,6 +553,7 @@ export class PalmfulSystem extends createSystem({}) {
       d.phase = this.phase;
       d.catch = this.cst;
       d.cup = this.cup;
+      d.palmCenter = this.frame.center; // two-hand mode switches frames
       return;
     }
     this.advancePhase(delta);
@@ -705,11 +714,18 @@ export class PalmfulSystem extends createSystem({}) {
   /** Two-hand mode: choose the hand that feeds the catch; point this.joints/frame at it. */
   private pickCatchHand(dt: number): void {
     const tracks = this.tracks!;
-    const views: HandView[] = (['right', 'left'] as const).map((side) => {
-      const t = tracks[side];
-      return { side, tracked: t.tracked, center: t.frame.center, normal: t.frame.normal, cup: t.tracked ? cupAmount(t.joints, t.frame) : 0 };
-    });
-    const chosen = chooseHand(views, this.cst!, this.eng, dt);
+    if (this.views.length === 0) {
+      for (const side of SIDES) {
+        const t = tracks[side];
+        this.views.push({ side, tracked: false, center: t.frame.center, normal: t.frame.normal, cup: 0 });
+      }
+    }
+    for (const v of this.views) {
+      const t = tracks[v.side];
+      v.tracked = t.tracked;
+      v.cup = t.tracked ? cupAmount(t.joints, t.frame) : 0;
+    }
+    const chosen = chooseHand(this.views, this.cst!, this.eng, dt);
     if (chosen) {
       this.joints = tracks[chosen.side].joints;
       this.frame = tracks[chosen.side].frame;
@@ -1168,9 +1184,24 @@ export class PalmfulSystem extends createSystem({}) {
     else this.phaseT += dt;
 
     // Session over: a fist held briefly replays, resetting every count.
-    const fist = this.tracks
-      ? (['right', 'left'] as const).some((sd) => this.tracks![sd].tracked && fingertipReach(this.tracks![sd].joints) < FIST_REACH)
-      : this.tracked && fingertipReach(this.joints) < FIST_REACH;
+    // Replay: the hand that just cupped the last seed is still closing, and a
+    // firm cup is within millimetres of the fist threshold. So the restart
+    // only ARMS once a hand has opened after 3/3; then a held fist replays.
+    // Arming is per hand: a fist counts only from a hand that has itself
+    // opened since 3/3 (another open hand must not arm the catching hand).
+    let fist = false;
+    if (this.tracks) {
+      for (const sd of SIDES) {
+        const t = this.tracks[sd];
+        if (!t.tracked) continue;
+        if (this.phase === 'done' && cupAmount(t.joints, t.frame) < CUP_ON) this.armed[sd] = true;
+        if (this.armed[sd] && fingertipReach(t.joints) < FIST_REACH) fist = true;
+      }
+    } else if (this.tracked) {
+      if (this.phase === 'done' && this.cup < CUP_ON) this.armed.right = true;
+      fist = this.armed.right && fingertipReach(this.joints) < FIST_REACH;
+    }
+    this.restartArmed = this.armed.right || this.armed.left;
     if (this.phase === 'done' && fist) {
       this.fistT += dt;
       if (this.fistT > 0.8) {
@@ -1213,6 +1244,8 @@ export class PalmfulSystem extends createSystem({}) {
         break;
       case 'complete':
         this.metrics.sessionsCompleted++;
+        this.armed.right = this.armed.left = false; // a hand must open before its fist replays
+        this.restartArmed = false;
         this.setPhase('done');
         break;
       default:
@@ -1304,7 +1337,7 @@ export class PalmfulSystem extends createSystem({}) {
     }
     this.hud.position.set(this.hudPos.x, this.hudPos.y, this.hudPos.z);
     this.hud.lookAt(this.head);
-    const key = `${done}|${this.fistT > 0}|${cst.kind}|${SEED_KINDS.map((k) => (cst.caught[k] ? 1 : 0)).join('')}`;
+    const key = `${done}|${this.fistT > 0}|${this.restartArmed}|${cst.kind}|${SEED_KINDS.map((k) => (cst.caught[k] ? 1 : 0)).join('')}`;
     if (key === this.hudKey) return;
     this.hudKey = key;
 
@@ -1324,7 +1357,7 @@ export class PalmfulSystem extends createSystem({}) {
       SEED_KINDS.forEach((k, i) => this.drawSeedIcon(c, k, cv.width / 2 + (i - 1) * 110, 165, 34, true, false));
       c.fillStyle = '#d8cbb8';
       c.font = '50px system-ui, sans-serif';
-      c.fillText('make a fist to play again', cv.width / 2, 245);
+      c.fillText(this.restartArmed ? 'make a fist to play again' : 'open your hand, then make a fist to play again', cv.width / 2, 245);
     } else {
       const w = cv.width / 3;
       SEED_KINDS.forEach((k, i) => {

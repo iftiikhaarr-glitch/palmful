@@ -191,8 +191,19 @@ try {
   check('completion card is shown and clear of the hand and flowers', layout.panelVisible && layout.overlaps === 0, JSON.stringify(layout));
   await page.screenshot({ path: `${shots}/v2-4-complete.png` });
 
-  // Fist restart resets every count
-  await press('C');
+  // The catching cup must not flow straight into a replay: going from the
+  // cup directly to a fist (without opening) does nothing...
+  const before = await state();
+  await press('F'); // cupped -> fist, never opened
+  await page.waitForTimeout(2500);
+  const held = await state();
+  const armed = await page.evaluate(() => window.__palmful.restartArmed());
+  check('after 3/3, closing from the cup into a fist does NOT restart (hand never opened)',
+    held.phase === 'done' && held.m.restarts === before.m.restarts && !armed, `restarts ${held.m.restarts}, armed ${armed}`);
+  // ...open the hand (arms the replay), then a held fist restarts
+  await press('F'); // fist off -> open hand
+  await page.waitForFunction(() => window.__palmful.restartArmed(), null, { timeout: 5000 });
+  log('OK  ', 'opening the hand arms the replay');
   await press('F');
   await waitFor('fist restart: all counts reset, gold first', (s) => s.m.restarts >= 1 && s.seed.catches === 0 && s.seed.misses === 0 && !s.seed.caught.gold && !s.seed.caught.blue && !s.seed.caught.pink && s.seed.kind === 'gold' && s.phase === 'play', 20);
   await press('F');

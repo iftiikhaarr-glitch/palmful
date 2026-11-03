@@ -35,7 +35,7 @@ Keep this file current; it is how work continues across sessions.
 
 **Cut (excluded features):** multiplayer, AI, accounts, procedural ecosystem, creatures leaving the hand, voice.
 
-## What works now (2 Nov 2026, late)
+## What worked on 2 Nov 2026 (historical; see the sections below for current state)
 
 - Repo: https://github.com/iftiikhaarr-glitch/palmful · Live: https://iftiikhaarr-glitch.github.io/palmful/ (laptop: `?emulate=1`).
 - CI on every push: clean install, typecheck, 11 unit tests, production build, a full laptop-mode session in headless Chromium, a no-WebXR landing check, then deploy.
@@ -48,7 +48,7 @@ Keep this file current; it is how work continues across sessions.
 - **2D landing page:** an "Enter AR" button (fallback for browsers without `offerSession`), or, without WebXR AR, a note to open on Quest plus a link to the laptop demo.
 - Tracking loss, pause, debug metrics and laptop mode are unchanged from before.
 
-## Catch-mode experiment (3 Nov 2026), `?catch=1`
+## Catch-mode experiment v1 (3 Nov 2026), superseded by catch v2 below
 
 **The game:** a glowing seed waits in front of you. When you offer an open, palm-up hand, it pulses for 1 s, then drifts down at 6 cm/s. A ring at palm height, the size of the catch area, shows where it will land, and turns green when your palm is in place. The seed lands in an open, palm-up hand whose centre is within 7.5 cm horizontally. A gentle cup (`cupAmount` ≥ 0.42) held for 0.2 s then catches it, and a flower grows (middle, index, ring). A miss gives a red burst and a low sound, and the seed comes back from the other side with progress kept. Hand loss pauses the seed. Tipping the palm past about 72° spills a resting seed. Three catches complete the session; a fist replays.
 
@@ -96,14 +96,22 @@ Keep this file current; it is how work continues across sessions.
 - **Tests:** 7 unit tests; breaking any one of four rules made a test fail. The two-hand session test runs 17 checks.
 - Gated behind `&hands=2` and in its own pull request, so it can be dropped without touching one-hand play.
 
-## Not verified (needs a headset): see `docs/DEVICE_TEST.md`
+## Review of PR #2 for Quest readiness (3 Nov 2026, branch `review-fixes`)
+
+- **Baseline on PR #2 (`33d9f42`):** clean install, typecheck, 36 unit tests and the build all pass. Browser checks: bloom 15, catch 38, two-hand 17, landing 3, contrast 10, all passing.
+- **Fixed:**
+  1. **Accidental replay after 3/3.** In the synthetic hand, a firm catching cup (50° per joint) sits 1 mm from the fist threshold (fingertip reach 0.121 m vs 0.12 m), so holding a squeeze could wipe the result. The replay now arms only after *that hand* opens. In two-hand mode an open other hand does not arm it; the first version of this fix allowed that, and the two-hand browser test caught it.
+  2. **Per-frame allocation in two-hand mode.** `chooseHand` and its inputs no longer allocate every frame, which matters for frame rate on the headset. Behaviour is unchanged: the same 7 tests pass and the same 4 deliberate breaks fail.
+  3. **Debug `palmCenter`** now follows the active hand in two-hand mode.
+  4. **Docs:** stale pointers (README and record pointed to `DEVICE_TEST.md`), superseded catch-v1 facts marked, the laptop replay instructions corrected, and the Quest guide given an accidental-replay check and the hand-outline check.
+
+## Not verified (needs a headset): see `docs/QUEST_TEST_GUIDE.md`
 
 ## Open issues
 
 - External CDN loads: IWSDK fetches hand-visual models from cdn.jsdelivr.net (fine online; in a blocked network the hand is tracked without a visual).
-- IWSDK hand visuals in AR on a real Quest: unknown whether a virtual hand is drawn over the real one.
+- IWSDK hand visuals: confirmed from the IWSDK 1.1.0-rc.2 source (`xr-input` `AnimatedHand`, always enabled). On a headset it draws a white outline over each tracked hand, plus an invisible depth-writing hand mesh that hides virtual objects behind the fingers. The model loads from cdn.jsdelivr.net. Whether the outline lines up with the real hand is a Quest test item.
 - Finger occlusion not implemented.
-- Onboarding is a text hint; no hatch moment yet.
 - Emulator screenshot via the CLI crashes the managed browser in this container; Playwright `page.screenshot` (test/capture.mjs) works.
 
 ## Next task

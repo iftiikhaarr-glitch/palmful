@@ -43,9 +43,10 @@ const ready = (h: HandView) => h.tracked && h.normal.y >= PALM_UP_MIN && h.cup <
  * engagement already points at it).
  */
 export function chooseHand(hands: HandView[], st: CatchState, eng: Engagement, dt: number): HandView | null {
-  const bySide = (s: Side | null) => hands.find((h) => h.side === s) ?? null;
+  // Allocation-free (runs every frame on the headset): plain loops only.
   const dist = (h: HandView) => Math.hypot(st.pos.x - h.center.x, st.pos.z - h.center.z);
-  const engaged = bySide(eng.side);
+  let engaged: HandView | null = null;
+  for (const h of hands) if (h.side === eng.side) engaged = h;
 
   // A seed in a palm (or just caught from it) belongs to that hand.
   if (st.seed === 'resting' || st.seed === 'caught') {
@@ -62,22 +63,25 @@ export function chooseHand(hands: HandView[], st: CatchState, eng: Engagement, d
     eng.lostT += dt;
     if (eng.lostT < GRACE_S) return null;
     eng.side = null; // released after the grace period
+    engaged = null;
   }
   eng.lostT = 0;
 
-  const tracked = hands.filter((h) => h.tracked);
-  if (tracked.length === 0) {
-    return null;
-  }
   // Prefer hands ready to receive (open, palm up); otherwise any tracked hand
   // (so the ring and hints still follow the nearest hand).
-  const pool = tracked.some(ready) ? tracked.filter(ready) : tracked;
-  let best = pool[0];
-  for (const h of pool) if (dist(h) < dist(best)) best = h;
-  const current = bySide(eng.side);
-  if (current && current.tracked && pool.includes(current) && dist(current) <= dist(best) + SWITCH_MARGIN) {
-    return current; // hysteresis: keep the engaged hand unless the other is clearly nearer
+  let anyReady = false;
+  let anyTracked = false;
+  for (const h of hands) {
+    if (h.tracked) anyTracked = true;
+    if (ready(h)) anyReady = true;
   }
-  eng.side = best.side;
+  if (!anyTracked) return null;
+  const inPool = (h: HandView) => (anyReady ? ready(h) : h.tracked);
+  let best: HandView | null = null;
+  for (const h of hands) if (inPool(h) && (!best || dist(h) < dist(best))) best = h;
+  if (engaged && inPool(engaged) && dist(engaged) <= dist(best!) + SWITCH_MARGIN) {
+    return engaged; // hysteresis: keep the engaged hand unless the other is clearly nearer
+  }
+  eng.side = best!.side;
   return best;
 }
