@@ -261,3 +261,25 @@ export function fingertipReach(j: HandJoints): number {
 
 /** Below this fingertip reach the hand counts as a fist. */
 export const FIST_REACH = 0.12;
+
+/**
+ * How cupped the hand is, 0 (flat) .. 1 (fingers curled up past 90 degrees).
+ * For index, middle and ring: the elevation of the knuckle->tip vector above
+ * the palm plane (toward the palm normal), averaged, divided by 90 degrees.
+ * Scale-invariant, so it works for any hand size.
+ */
+export function cupAmount(j: HandJoints, frame: PalmFrame): number {
+  let sum = 0;
+  for (const f of FINGERS) {
+    const k = j.finger[f][0];
+    const t = j.finger[f][3];
+    const vx = t.x - k.x;
+    const vy = t.y - k.y;
+    const vz = t.z - k.z;
+    const up = vx * frame.normal.x + vy * frame.normal.y + vz * frame.normal.z;
+    const along = vx * frame.fwd.x + vy * frame.fwd.y + vz * frame.fwd.z;
+    sum += Math.atan2(up, along);
+  }
+  const deg = (sum / FINGERS.length) * (180 / Math.PI);
+  return deg <= 0 ? 0 : deg >= 90 ? 1 : deg / 90;
+}

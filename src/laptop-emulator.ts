@@ -5,6 +5,8 @@
 
 const PARAMS = new URLSearchParams(location.search);
 export const EMULATE = PARAMS.has('emulate');
+const CATCH = PARAMS.has('catch');
+const MOVE = 0.02; // metres per key press in catch mode
 
 type Remote = { dispatch(method: string, params?: Record<string, unknown>): Promise<unknown> };
 
@@ -32,7 +34,8 @@ export async function installLaptopEmulator(): Promise<void> {
   device.primaryInputMode = 'hand';
   // A laptop screen is small: narrow the emulated vertical FOV (~43°) so the
   // hand fills the view. A real Quest 3 view is much wider.
-  device.fovy = 0.75;
+  // Catch mode needs the falling seed and the hand in one view: a bit wider.
+  device.fovy = CATCH ? 1.1 : 0.75;
   const remote = (device as unknown as { remote: Remote }).remote;
   (window as unknown as { __palmfulEmu: Remote }).__palmfulEmu = remote;
 
@@ -41,6 +44,8 @@ export async function installLaptopEmulator(): Promise<void> {
   let fist = false;
   let hidden = false;
   let started = false;
+  let cupped = false;
+  const off = { x: 0, y: 0, z: 0 }; // catch mode: hand offset from its start
 
   const call = (m: string, p?: Record<string, unknown>) =>
     remote.dispatch(m, p).catch((e: unknown) => console.warn('[laptop]', m, e));
@@ -51,10 +56,13 @@ export async function installLaptopEmulator(): Promise<void> {
     await call('set_transform', {
       device: 'hand-right',
       anchor: 'wrist',
-      position: WRIST,
+      position: { x: WRIST.x + off.x, y: WRIST.y + off.y, z: WRIST.z + off.z },
       orientation: { fingers: o.fingers, palm: o.palm },
     });
-    status.textContent = `pitch ${pitch}°  roll ${roll}°${fist ? '  FIST' : ''}${hidden ? '  HAND HIDDEN' : ''}`;
+    const where = CATCH
+      ? `x ${(off.x * 100).toFixed(0)} cm  fwd ${(-off.z * 100).toFixed(0)} cm  up ${(off.y * 100).toFixed(0)} cm${cupped ? '  CUPPED' : ''}${roll ? '  TILTED' : ''}`
+      : `pitch ${pitch}°  roll ${roll}°`;
+    status.textContent = `${where}${fist ? '  FIST' : ''}${hidden ? '  HAND HIDDEN' : ''}`;
   };
 
   // ---- overlay UI ----
@@ -63,13 +71,17 @@ export async function installLaptopEmulator(): Promise<void> {
   const panel = document.createElement('div');
   panel.id = 'laptop-panel';
   panel.style.cssText =
-    'position:fixed;left:16px;top:16px;z-index:10;' +
+    'position:fixed;right:16px;top:16px;z-index:10;' +
     'font:13px/1.45 system-ui,sans-serif;color:#fff4e0;background:rgba(20,16,28,.85);' +
-    'padding:10px 14px;border-radius:12px;max-width:min(300px,calc(100vw - 32px));text-align:left';
+    'padding:10px 14px;border-radius:12px;max-width:min(270px,calc(100vw - 32px));text-align:left;opacity:.92';
   panel.innerHTML =
     '<b>Laptop emulator</b>: not a headset test.<br>' +
     '<button id="laptop-start" style="margin:8px 0;padding:8px 18px;font:inherit;font-weight:600;border-radius:8px;border:0;background:#ffb35c;color:#221;cursor:pointer">Start</button><br>' +
-    '<span><b>Space</b> raise hand, palm up (again: level it)<br><b>↑ ↓</b> tip fingertips down / up<br><b>← →</b> roll toward pinky / index<br><b>F</b> fist &nbsp; <b>H</b> lower hand</span><br>' +
+    (CATCH
+      ? '<b>Catch mode</b>: catch the falling seed.<br>' +
+        '<span><b>Space</b> raise hand, palm up (again: back to start)<br><b>← →</b> move hand left / right<br><b>↑ ↓</b> move hand forward / back<br><b>W S</b> move hand up / down<br><b>C</b> cup / open the hand<br><b>T</b> tip palm sideways (spill) &nbsp; <b>F</b> fist &nbsp; <b>H</b> lower hand<br>' +
+        'Move under the seed (ring turns green), let it land, then press <b>C</b>.</span><br>'
+      : '<span><b>Space</b> raise hand, palm up (again: level it)<br><b>↑ ↓</b> tip fingertips down / up<br><b>← →</b> roll toward pinky / index<br><b>F</b> fist &nbsp; <b>H</b> lower hand</span><br>') +
     '<code id="laptop-status" style="opacity:.8"></code>';
   document.body.appendChild(panel);
   const status = panel.querySelector('#laptop-status') as HTMLElement;
@@ -91,7 +103,7 @@ export async function installLaptopEmulator(): Promise<void> {
     hidden = true;
     await call('set_hand_pose', { device: 'hand-right', poseId: 'flat' });
     await call('set_transform', { device: 'headset', position: { x: 0.04, y: 1.42, z: -0.05 } });
-    await call('look_at', { device: 'headset', target: { x: 0.05, y: 1.14, z: -0.38 } });
+    await call('look_at', { device: 'headset', target: CATCH ? { x: 0.04, y: 1.27, z: -0.38 } : { x: 0.05, y: 1.14, z: -0.38 } });
     started = true;
     startBtn.style.display = 'none';
     await applyHand();
@@ -100,6 +112,66 @@ export async function installLaptopEmulator(): Promise<void> {
   window.addEventListener('keydown', async (e) => {
     if (!started) return;
     let handled = true;
+    if (CATCH) {
+      switch (e.key) {
+        case 'ArrowLeft':
+          off.x -= MOVE;
+          break;
+        case 'ArrowRight':
+          off.x += MOVE;
+          break;
+        case 'ArrowUp':
+          off.z -= MOVE;
+          break;
+        case 'ArrowDown':
+          off.z += MOVE;
+          break;
+        case 'w':
+        case 'W':
+          off.y += MOVE;
+          break;
+        case 's':
+        case 'S':
+          off.y -= MOVE;
+          break;
+        case 'c':
+        case 'C':
+          cupped = !cupped;
+          fist = false;
+          await call('set_hand_pose', { device: 'hand-right', poseId: cupped ? 'cup' : 'flat' });
+          break;
+        case 't':
+        case 'T':
+          roll = roll ? 0 : 85;
+          break;
+        case ' ':
+          off.x = off.y = off.z = 0;
+          roll = 0;
+          if (hidden) {
+            hidden = false;
+            await call('set_connected', { device: 'hand-right', connected: true });
+          }
+          break;
+        case 'f':
+        case 'F':
+          fist = !fist;
+          cupped = false;
+          await call('set_hand_pose', { device: 'hand-right', poseId: fist ? 'fist' : 'flat' });
+          break;
+        case 'h':
+        case 'H':
+          hidden = !hidden;
+          await call('set_connected', { device: 'hand-right', connected: !hidden });
+          break;
+        default:
+          handled = false;
+      }
+      if (handled) {
+        e.preventDefault();
+        await applyHand();
+      }
+      return;
+    }
     switch (e.key) {
       case 'ArrowUp':
         pitch = Math.min(80, pitch + STEP);

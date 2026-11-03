@@ -19,6 +19,7 @@ import {
   MeshStandardMaterial,
   PerspectiveCamera,
   PlaneGeometry,
+  RingGeometry,
   SphereGeometry,
   Vector3,
 } from '@iwsdk/core';
@@ -39,16 +40,34 @@ import {
   makeHandJoints,
   makePalmFrame,
   OneEuro3,
+  cupAmount,
   FIST_REACH,
   fingertipReach,
   type PalmFrame,
 } from './palm/hand-frame.js';
+import {
+  CATCH_RADIUS,
+  type CatchEvent,
+  type CatchState,
+  CAUGHT_S,
+  chooseSpawn,
+  CUP_HOLD,
+  CUP_ON,
+  MISSED_S,
+  makeCatch,
+  PALM_UP_MIN,
+  stepCatch,
+} from './palm/catch-sim.js';
 import { type Vec3, v3 } from './palm/math.js';
 
 const PARAMS = new URLSearchParams(location.search);
 const DEBUG = PARAMS.has('debug');
 /** Draw tracked joints as dots (the emulator does not render hands in AR). */
 const SKELETON = PARAMS.has('skeleton') || PARAMS.has('emulate');
+/** Experimental catch mode (?catch=1); the three-bloom game is the default. */
+export const MODE: 'bloom' | 'catch' = PARAMS.has('catch') ? 'catch' : 'bloom';
+/** Fingertips that grow a flower, in order (both modes). */
+const FLOWER_ORDER: FingerName[] = ['middle', 'index', 'ring'];
 const GRAVITY = v3(0, -9.81, 0);
 const COLORS = {
   calm: new Color('#ffb35c'),
@@ -105,6 +124,10 @@ declare global {
       metrics: PalmfulMetrics;
       tracked: boolean;
       phase: Phase;
+      mode: 'bloom' | 'catch';
+      catch: CatchState | null;
+      cup: number;
+      palmCenter: Vec3;
       trailVisible: boolean;
       hint: string;
       layout: () => LayoutReport;
@@ -142,6 +165,16 @@ export class PalmfulSystem extends createSystem({}) {
   private hintVisible = false;
   private hintTitle = '';
   private flowerAge: Partial<Record<FingerName, number>> = {};
+  // catch mode
+  private cst: CatchState | null = null;
+  private ring!: Mesh;
+  private ringMat!: MeshBasicMaterial;
+  private halo!: Mesh;
+  private nextSpawn = v3();
+  private headV = v3();
+  private cup = 0;
+  private flash: { color: string; t: number; x: number; y: number; z: number } | null = null;
+  private lastEvent: CatchEvent = 'none';
 
   private st: CreatureState = makeCreature();
   private joints: HandJoints = makeHandJoints();
@@ -235,11 +268,17 @@ export class PalmfulSystem extends createSystem({}) {
       this.root.add(d);
     }
 
+    if (MODE === 'catch') this.buildCatch();
+
     window.__palmful = {
       state: this.st,
       metrics: this.metrics,
       tracked: false,
       phase: this.phase,
+      mode: MODE,
+      catch: null,
+      cup: 0,
+      palmCenter: this.frame.center,
       trailVisible: false,
       hint: '',
       layout: () => this.layoutCheck(),
@@ -365,6 +404,18 @@ export class PalmfulSystem extends createSystem({}) {
     }
 
     if (this.tracked && this.frame.normal.y > 0.5) this.metrics.palmUpFrames++;
+    if (MODE === 'catch') {
+      this.updateCatch(delta, time);
+      this.renderJointDots();
+      this.renderBeaconAndFlowers(time, delta);
+      this.renderHint(delta);
+      const d = window.__palmful!;
+      d.tracked = this.tracked;
+      d.phase = this.phase;
+      d.catch = this.cst;
+      d.cup = this.cup;
+      return;
+    }
     this.advancePhase(delta);
     const playing = this.phase === 'play' || this.phase === 'done';
 
@@ -389,13 +440,7 @@ export class PalmfulSystem extends createSystem({}) {
       this.st.mood = 'waiting';
     }
 
-    if (SKELETON) {
-      for (let i = 0; i < this.jointDots.length; i++) {
-        const p = this.keys[i].get(this.joints);
-        this.jointDots[i].position.set(p.x, p.y, p.z);
-        this.jointDots[i].visible = this.tracked;
-      }
-    }
+    this.renderJointDots();
     this.renderMote(time);
     this.renderSeed(time);
     this.renderTrail(time, delta);
@@ -470,6 +515,15 @@ export class PalmfulSystem extends createSystem({}) {
     return true;
   }
 
+  private renderJointDots(): void {
+    if (!SKELETON) return;
+    for (let i = 0; i < this.jointDots.length; i++) {
+      const p = this.keys[i].get(this.joints);
+      this.jointDots[i].position.set(p.x, p.y, p.z);
+      this.jointDots[i].visible = this.tracked;
+    }
+  }
+
   private measureJitter(): void {
     // High-pass of the creature's rendered position: what the eye reads as shake.
     const k = 0.15;
@@ -541,7 +595,7 @@ export class PalmfulSystem extends createSystem({}) {
   }
 
   private renderBeaconAndFlowers(time: number, delta: number): void {
-    const done = this.st.blooms >= 3;
+    const done = this.phase === 'done';
     this.beacon.visible = this.tracked && this.phase === 'play' && !done && !this.flowers[this.st.target];
     if (this.beacon.visible) {
       this.tipPos(this.st.target, 0.004, this.beacon.position);
@@ -719,9 +773,193 @@ export class PalmfulSystem extends createSystem({}) {
     this.metrics.firstSlideS = null;
   }
 
-  private onBloom(f: FingerName): void {
+  // ---------- catch mode (?catch=1) ----------
+
+  private buildCatch(): void {
+    // Bloom-mode pieces stay hidden in catch mode.
+    this.mote.visible = false;
+    this.shadow.visible = false;
+    this.beacon.visible = false;
+    for (const d of this.trail) d.visible = false;
+    // The falling seed glows: a soft halo around the existing seed mesh.
+    const seedMat = this.seed.material as MeshStandardMaterial;
+    seedMat.color.set('#ffd27a');
+    seedMat.emissive.set('#ffb347');
+    seedMat.emissiveIntensity = 0.9;
+    this.halo = new Mesh(
+      new SphereGeometry(0.016, 20, 14),
+      new MeshBasicMaterial({ color: '#ffe9a8', transparent: true, opacity: 0.25, depthWrite: false }),
+    );
+    this.seed.add(this.halo);
+    // Landing ring: shows where the seed will come down, drawn at the height
+    // of your palm and exactly the size of the catch area.
+    this.ringMat = new MeshBasicMaterial({
+      color: '#ffd27a',
+      transparent: true,
+      opacity: 0.6,
+      side: DoubleSide,
+      depthWrite: false,
+    });
+    this.ring = new Mesh(new RingGeometry(CATCH_RADIUS - 0.006, CATCH_RADIUS, 48), this.ringMat);
+    this.ring.rotation.x = -Math.PI / 2;
+    this.ring.visible = false;
+    this.root.add(this.ring);
+  }
+
+  private computeSpawn(roundOffset = 1, out: Vec3 = this.nextSpawn): void {
+    this.player.head.getWorldPosition(this.head);
+    this.root.worldToLocal(this.head);
+    this.player.head.getWorldDirection(this.tmp); // points backwards (camera -Z)
+    this.headV.x = this.head.x;
+    this.headV.y = this.head.y;
+    this.headV.z = this.head.z;
+    const round = this.cst ? this.cst.round + roundOffset : 0;
+    chooseSpawn(this.headV, -this.tmp.x, -this.tmp.z, this.tracked ? this.frame.center : null, round, out);
+  }
+
+  private updateCatch(dt: number, time: number): void {
+    this.computeSpawn();
+    if (!this.cst) this.cst = makeCatch(this.nextSpawn);
+    const cst = this.cst;
+    // Until a palm is first offered, keep the waiting seed in front of the
+    // current view (the head pose on the very first frames is not settled).
+    if (this.phase === 'await' && cst.seed === 'waiting') {
+      this.computeSpawn(0, cst.spawn);
+      cst.pos.x = cst.spawn.x;
+      cst.pos.y = cst.spawn.y;
+      cst.pos.z = cst.spawn.z;
+      this.computeSpawn();
+    }
+    this.cup = this.tracked ? cupAmount(this.joints, this.frame) : 0;
+
+    if (this.phase === 'await' && this.tracked && this.frame.normal.y >= PALM_UP_MIN) this.setPhase('play');
+    else this.phaseT += dt;
+
+    // Session over: a fist held briefly replays.
+    if (this.phase === 'done' && this.tracked && fingertipReach(this.joints) < FIST_REACH) {
+      this.fistT += dt;
+      if (this.fistT > 0.8) {
+        this.clearFlowers();
+        Object.assign(cst, makeCatch(this.nextSpawn));
+        this.fistT = 0;
+        this.metrics.restarts++;
+        this.setPhase('play');
+      }
+    } else {
+      this.fistT = 0;
+    }
+
+    const ev = stepCatch(
+      cst,
+      { tracked: this.tracked, center: this.frame.center, normal: this.frame.normal, cup: this.cup, nextSpawn: this.nextSpawn },
+      dt,
+    );
+    if (ev !== 'none') this.lastEvent = ev;
+    switch (ev) {
+      case 'land':
+        this.chime('land');
+        break;
+      case 'catch':
+        this.growFlower(FLOWER_ORDER[(cst.catches - 1) % 3]);
+        this.chime(cst.catches >= 3 ? 'final' : 'bloom');
+        this.flash = { color: '#7dffa0', t: 0, x: cst.pos.x, y: cst.pos.y, z: cst.pos.z };
+        if (this.metrics.firstBloomS === null) this.metrics.firstBloomS = this.metrics.sessionS;
+        break;
+      case 'miss':
+        this.chime('miss');
+        this.flash = { color: '#ff6f6f', t: 0, x: cst.pos.x, y: cst.pos.y, z: cst.pos.z };
+        break;
+      case 'spill':
+        this.chime('spill');
+        break;
+      case 'complete':
+        this.metrics.sessionsCompleted++;
+        this.setPhase('done');
+        break;
+      default:
+        break;
+    }
+    this.renderCatchSeed(time, dt);
+  }
+
+  private renderCatchSeed(time: number, dt: number): void {
+    const cst = this.cst!;
+    const s = this.seed;
+    const mat = s.material as MeshStandardMaterial;
+    s.position.set(cst.pos.x, cst.pos.y, cst.pos.z);
+    s.rotation.y = time * 1.5;
+    s.visible = cst.seed !== 'done';
+    let scale = 1;
+    let haloOpacity = 0.25 + Math.sin(time * 4) * 0.08;
+    mat.emissive.set('#ffb347');
+    if (cst.seed === 'waiting') {
+      // telegraph: pulses brighter before it starts to fall
+      scale = 1 + Math.max(0, Math.sin(time * 6)) * 0.25;
+      haloOpacity = 0.45;
+    } else if (cst.seed === 'resting') {
+      // ready to be cupped: slow, warm pulse; tighter as the cup closes
+      scale = 1 + Math.sin(time * 3) * 0.08 - Math.min(1, cst.cupT / CUP_HOLD) * 0.2;
+    } else if (cst.seed === 'caught') {
+      // shrinks into the hand as the flower grows
+      scale = Math.max(0.001, 1 - cst.t / (CAUGHT_S * 0.5));
+    } else if (cst.seed === 'missed') {
+      // fades out red, then comes back from above
+      const k = Math.min(1, cst.t / MISSED_S);
+      mat.emissive.set('#ff5a5a');
+      scale = Math.max(0.001, 1 - k);
+      haloOpacity = 0.3 * (1 - k);
+    }
+    s.scale.set(scale, scale * 1.25, scale);
+    (this.halo.material as MeshBasicMaterial).opacity = Math.max(0, haloOpacity);
+
+    // Landing ring under the seed at palm height; green when the palm is in place.
+    const r = this.ring;
+    const showRing = this.phase !== 'done' && (cst.seed === 'falling' || cst.seed === 'waiting');
+    r.visible = showRing || this.flash !== null;
+    if (showRing) {
+      const y = this.tracked ? this.frame.center.y : cst.pos.y - 0.25;
+      r.position.set(cst.pos.x, y, cst.pos.z);
+      r.scale.setScalar(1);
+      const dx = cst.pos.x - this.frame.center.x;
+      const dz = cst.pos.z - this.frame.center.z;
+      const ready = this.tracked && this.frame.normal.y >= PALM_UP_MIN && Math.hypot(dx, dz) <= CATCH_RADIUS;
+      this.ringMat.color.set(ready ? '#7dffa0' : '#ffd27a');
+      this.ringMat.opacity = ready ? 0.85 : 0.5;
+    }
+    if (this.flash) {
+      // catch (green) or miss (red): the ring bursts outward and fades
+      const f = this.flash;
+      f.t += dt;
+      const k = f.t / 0.8;
+      if (k >= 1) {
+        this.flash = null;
+      } else if (!showRing) {
+        r.position.set(f.x, f.y - 0.004, f.z);
+        r.scale.setScalar(1 + k * 1.5);
+        this.ringMat.color.set(f.color);
+        this.ringMat.opacity = 0.9 * (1 - k);
+      }
+    }
+  }
+
+  private growFlower(f: FingerName): void {
     if (!this.flowers[f]) this.flowers[f] = this.makeFlower(f);
     this.flowerAge[f] = 0;
+  }
+
+  private clearFlowers(): void {
+    for (const f of FINGERS) {
+      const g = this.flowers[f];
+      if (g) {
+        this.root.remove(g);
+        delete this.flowers[f];
+        delete this.flowerAge[f];
+      }
+    }
+  }
+
+  private onBloom(f: FingerName): void {
+    this.growFlower(f);
     if (this.metrics.firstBloomS === null) this.metrics.firstBloomS = this.metrics.sessionS;
     if (this.st.blooms >= 3) {
       this.metrics.sessionsCompleted++;
@@ -730,18 +968,24 @@ export class PalmfulSystem extends createSystem({}) {
     this.chime(this.st.blooms >= 3 ? 'final' : 'bloom');
   }
 
-  private chime(kind: 'hatch' | 'bloom' | 'final'): void {
+  private chime(kind: 'hatch' | 'bloom' | 'final' | 'land' | 'miss' | 'spill'): void {
     const final = kind === 'final';
     try {
       this.audio ??= new AudioContext();
       const ctx = this.audio;
       void ctx.resume();
+      const step = MODE === 'catch' ? (this.cst?.catches ?? 0) : this.st.blooms;
       const notes =
-        kind === 'hatch' ? [392, 523.25] : final ? [523.25, 659.25, 783.99, 1046.5] : [659.25 + this.st.blooms * 98, 987.77];
+        kind === 'hatch' ? [392, 523.25]
+        : kind === 'land' ? [587.33]
+        : kind === 'miss' ? [220, 174.61] // falling minor second: clearly "no"
+        : kind === 'spill' ? [329.63, 261.63]
+        : final ? [523.25, 659.25, 783.99, 1046.5]
+        : [659.25 + step * 98, 987.77];
       notes.forEach((hz, i) => {
         const o = ctx.createOscillator();
         const g = ctx.createGain();
-        o.type = 'sine';
+        o.type = kind === 'miss' ? 'triangle' : 'sine';
         o.frequency.value = hz;
         const t0 = ctx.currentTime + i * 0.09;
         g.gain.setValueAtTime(0, t0);
@@ -758,6 +1002,7 @@ export class PalmfulSystem extends createSystem({}) {
 
   /** The few words the game ever shows; null = no panel (most of play). */
   private hintFor(): { title: string; sub: string } | null {
+    if (MODE === 'catch') return this.catchHint();
     const st = this.st;
     if (this.phase === 'await') {
       return this.tracked
@@ -779,19 +1024,40 @@ export class PalmfulSystem extends createSystem({}) {
     return null;
   }
 
+  private catchHint(): { title: string; sub: string } | null {
+    const cst = this.cst;
+    if (this.phase === 'await' || !cst) {
+      return this.tracked
+        ? { title: 'Turn your palm up', sub: '' }
+        : { title: 'Hold out your hand', sub: 'palm up, under the seed' };
+    }
+    if (this.phase === 'done') {
+      return this.fistT > 0
+        ? { title: 'Hold it\u2026', sub: '' }
+        : { title: 'All three caught', sub: 'make a fist to play again' };
+    }
+    if (!this.tracked) return { title: 'Bring your hand back', sub: '' };
+    switch (cst.seed) {
+      case 'caught':
+        return { title: `Caught ${cst.catches} of 3`, sub: '' };
+      case 'missed':
+        return { title: 'Missed', sub: 'it will come back' };
+      case 'resting':
+        return cst.restT > 1.5 && cst.cupT === 0 ? { title: 'Gently cup your hand', sub: '' } : null;
+      default:
+        if (this.frame.normal.y < PALM_UP_MIN && this.phaseT > 1) return { title: 'Turn your palm up', sub: '' };
+        if (this.cup >= CUP_ON) return { title: 'Open your hand', sub: 'to receive the seed' };
+        return null;
+    }
+  }
+
   private placePanel(): void {
     // Above and slightly beyond the hand (away from the eyes), so from the
     // player's view it sits above the hand rather than across it.
     this.player.head.getWorldPosition(this.head);
     this.root.worldToLocal(this.head);
     if (this.tracked && this.phase !== 'await') {
-      const c = this.frame.center;
-      let ax = c.x - this.head.x;
-      let az = c.z - this.head.z;
-      const len = Math.hypot(ax, az) || 1;
-      ax /= len;
-      az /= len;
-      this.hint.position.set(c.x + ax * 0.06, c.y + 0.1, c.z + az * 0.06);
+      this.placeAboveHandInView();
     } else if (this.phase === 'await') {
       // just under the floating seed
       this.hint.position.set(this.seed.position.x, this.seed.position.y - 0.045, this.seed.position.z);
@@ -806,6 +1072,58 @@ export class PalmfulSystem extends createSystem({}) {
     this.hint.lookAt(this.head);
   }
 
+  /**
+   * Put the panel just above the hand *as the player sees it*: find the hand
+   * joint, flower or Mote that sits highest in the view, then place the
+   * panel's bottom edge a little above it, at the same distance. Works for
+   * any head angle, hand distance or finger curl.
+   */
+  private placeAboveHandInView(): void {
+    const head = this.head; // root-local head position (set by placePanel)
+    this.player.head.getWorldDirection(this.tmp); // +Z of the head = backwards
+    const fx = -this.tmp.x, fy = -this.tmp.y, fz = -this.tmp.z;
+    // camera up in world space
+    this.player.head.updateMatrixWorld();
+    const e = this.player.head.matrixWorld.elements;
+    let ux = e[4], uy = e[5], uz = e[6];
+    const ul = Math.hypot(ux, uy, uz) || 1;
+    ux /= ul; uy /= ul; uz /= ul;
+
+    let best = -Infinity;
+    let ax = this.frame.center.x, ay = this.frame.center.y, az = this.frame.center.z;
+    const consider = (x: number, y: number, z: number) => {
+      const vx = x - head.x, vy = y - head.y, vz = z - head.z;
+      const depth = vx * fx + vy * fy + vz * fz;
+      if (depth <= 0.05) return;
+      const elev = (vx * ux + vy * uy + vz * uz) / depth;
+      if (elev > best) {
+        best = elev;
+        ax = x; ay = y; az = z;
+      }
+    };
+    for (const k of this.keys) {
+      const p = k.get(this.joints);
+      consider(p.x, p.y, p.z);
+    }
+    for (const f of FINGERS) {
+      const g = this.flowers[f];
+      if (g) consider(g.position.x + this.frame.normal.x * 0.016, g.position.y + this.frame.normal.y * 0.016, g.position.z + this.frame.normal.z * 0.016);
+    }
+    if (this.mote.visible) consider(this.mote.position.x, this.mote.position.y + 0.012, this.mote.position.z);
+
+    // "up" perpendicular to the line of sight to that point
+    let dx = ax - head.x, dy = ay - head.y, dz = az - head.z;
+    const dl = Math.hypot(dx, dy, dz) || 1;
+    dx /= dl; dy /= dl; dz /= dl;
+    const d = ux * dx + uy * dy + uz * dz;
+    let px = ux - dx * d, py = uy - dy * d, pz = uz - dz * d;
+    const pl = Math.hypot(px, py, pz) || 1;
+    px /= pl; py /= pl; pz /= pl;
+    const half = (this.hint.geometry as PlaneGeometry).parameters.height / 2;
+    const lift = half + 0.02;
+    this.hint.position.set(ax + px * lift, ay + py * lift, az + pz * lift);
+  }
+
   private renderHint(delta: number): void {
     const msg = this.hintFor();
     this.hintVisible = DEBUG || msg !== null;
@@ -814,17 +1132,21 @@ export class PalmfulSystem extends createSystem({}) {
     if (!this.hintVisible) return;
     this.placePanel();
 
-    this.hintTimer -= delta;
-    if (this.hintTimer > 0) return;
-    this.hintTimer = 0.25;
     const title = msg?.title ?? '';
     const sub = msg?.sub ?? '';
+    // Redraw at once when the message changes; debug numbers 4x per second.
+    const changed = this.hintTitle.slice(0, title.length + sub.length) !== title + sub;
+    this.hintTimer -= delta;
+    if (this.hintTimer > 0 && !changed) return;
+    this.hintTimer = 0.25;
     const m = this.metrics;
     const dbg = DEBUG
       ? [
           `fps ${m.fps.toFixed(0)}  tracked ${((100 * m.trackedFrames) / Math.max(1, m.xrFrames)).toFixed(0)}%  palm-up ${((100 * m.palmUpFrames) / Math.max(1, m.trackedFrames)).toFixed(0)}%`,
           `jitter ${m.jitterRmsMm.toFixed(1)} mm  losses ${m.lossEvents}  longest ${m.longestLossMs.toFixed(0)} ms`,
-          `${this.phase}  ${this.st.place}  ${this.st.mood}  blooms ${this.st.blooms}  1st bloom ${m.firstBloomS?.toFixed(1) ?? '-'} s`,
+          MODE === 'catch' && this.cst
+            ? `${this.cst.seed}  caught ${this.cst.catches}  missed ${this.cst.misses}  spilled ${this.cst.spills}  cup ${this.cup.toFixed(2)}`
+            : `${this.phase}  ${this.st.place}  ${this.st.mood}  blooms ${this.st.blooms}  1st bloom ${m.firstBloomS?.toFixed(1) ?? '-'} s`,
         ].join('\n')
       : '';
     const key = title + sub + dbg + this.st.blooms;

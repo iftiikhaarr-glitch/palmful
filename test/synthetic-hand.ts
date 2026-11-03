@@ -17,6 +17,8 @@ export interface SynthOptions {
   /** random jitter amplitude in metres */
   jitter?: number;
   rand?: () => number;
+  /** translate the whole hand (applied after rotation) */
+  offset?: { x: number; y: number; z: number };
 }
 
 function rot(p: Vec3, wrist: Vec3, pitch: number, roll: number, sideSign: number): void {
@@ -84,6 +86,13 @@ export function synthHand(opts: SynthOptions = {}, out: HandJoints = makeHandJoi
   const all: Vec3[] = [out.pinkyProx, ...out.finger.index, ...out.finger.middle, ...out.finger.ring];
   for (const p of all) rot(p, wrist, pitch, roll, sx);
   for (const p of [out.wrist, ...all]) jit(p);
+  if (opts.offset) {
+    for (const p of [out.wrist, ...all]) {
+      p.x += opts.offset.x;
+      p.y += opts.offset.y;
+      p.z += opts.offset.z;
+    }
+  }
   return out;
 }
 

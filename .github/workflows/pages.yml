@@ -29,13 +29,14 @@ jobs:
       - run: npm run typecheck
       - run: npm test
       - run: npm run build
-      - name: End-to-end laptop-mode session (headless Chromium)
+      - name: End-to-end sessions, bloom and catch (headless Chromium)
         run: |
           npx playwright install --with-deps chromium
           (npx vite preview --port 4173 --strictPort > preview.log 2>&1 &)
           sleep 5
           mkdir -p e2e-shots
           node test/laptop-e2e.mjs https://localhost:4173/ e2e-shots
+          node test/catch-e2e.mjs https://localhost:4173/ e2e-shots
           node test/landing-e2e.mjs https://localhost:4173/ e2e-shots
       - uses: actions/upload-artifact@v4
         if: always()

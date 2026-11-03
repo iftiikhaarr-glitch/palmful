@@ -48,6 +48,23 @@ Keep this file current; it is how work continues across sessions.
 - **2D landing page:** an "Enter AR" button (fallback for browsers without `offerSession`), or, without WebXR AR, a note to open on Quest plus a link to the laptop demo.
 - Tracking loss, pause, debug metrics and laptop mode are unchanged from before.
 
+## Catch-mode experiment (3 Nov 2026), `?catch=1`
+
+**The game:** a glowing seed waits in front of you. When you offer an open, palm-up hand, it pulses for 1 s, then drifts down at 6 cm/s. A ring at palm height, the size of the catch area, shows where it will land, and turns green when your palm is in place. The seed lands in an open, palm-up hand whose centre is within 7.5 cm horizontally. A gentle cup (`cupAmount` ≥ 0.42) held for 0.2 s then catches it, and a flower grows (middle, index, ring). A miss gives a red burst and a low sound, and the seed comes back from the other side with progress kept. Hand loss pauses the seed. Tipping the palm past about 72° spills a resting seed. Three catches complete the session; a fist replays.
+
+**Guards against false catches:**
+- The seed must land in an open palm first.
+- The cup must be held 0.2 s after landing.
+- Relaxed hands measure below the threshold (synthetic hand: about 0.29; emulator relaxed pose: 0.06; emulator cup: 0.66).
+
+**Verified:** 16 catch unit tests, including six deliberate code breaks that each made tests fail. A 21-check end-to-end catch session runs on the production build. Bloom mode still passes its own tests.
+
+**Not verified:** cup values and catch feel on real hands. See `QUEST_TEST_GUIDE.md` Part B and the decision table there.
+
+**Found and fixed while building:**
+- The first seed was placed using the head pose of the first frame, before it had settled. The waiting seed now follows your view until a palm is offered.
+- The completion panel could cover curled fingers. It now sits just above the highest hand or flower point in view, in both modes.
+
 ## Not verified (needs a headset): see `docs/DEVICE_TEST.md`
 
 ## Open issues

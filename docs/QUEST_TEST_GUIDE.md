@@ -1,8 +1,15 @@
-# Palmful: Quest 3 / 3S test (about 10 minutes, 3 of them playing)
+# Palmful: Quest 3 / 3S test (about 15 minutes, 6 of them playing)
 
-Thank you for testing. Palmful is a tiny creature ("Mote") that lives on your
-open hand. We need to know one thing: **does Mote visibly stay on a real palm
-while the hand moves naturally?** No account or install is needed.
+Thank you for testing. Palmful is a small, hands-only experience. There are
+two versions, and this test decides which one we keep:
+
+- **A. Bloom** (default): a tiny creature, Mote, lives on your open palm; you tip
+  your hand to slide it to a glowing fingertip, which blooms.
+- **B. Catch**: a glowing seed drifts down; you move your open, palm-up hand
+  under it, let it land, then gently cup your hand to catch it.
+
+No account or install is needed. Nothing has been measured on a Quest yet; all
+results so far come from an emulator on a laptop.
 
 ## 1. Set up (about 5 minutes)
 
@@ -10,64 +17,96 @@ while the hand moves naturally?** No account or install is needed.
 2. Turn on hand tracking: **Settings → Movement tracking → Hand and body
    tracking → Hand tracking: on**. Put both controllers **down, out of reach**.
 3. Sit down.
-4. Open the **Browser** and enter exactly:
+4. Start recording before each part: look at your palm and pinch the **Meta
+   icon** that appears, then **Camera → Record video**. (Menu names can differ
+   slightly between headset software versions.)
+5. To leave a part, press the Meta button and close the browser tab, then
+   open the next address.
 
-   **`https://iftiikhaarr-glitch.github.io/palmful/?debug=1`**
+## 2. Part A: Bloom (3 minutes)
 
-5. Pinch **Enter AR**. If the browser asks to allow hand tracking or
-   spatial data, choose **Allow**.
-6. Start recording: look at your palm and pinch the **Meta icon** that appears
-   to open the menu, then **Camera** → **Record video**. (Menu names can differ
-   slightly between headset software versions.) Recording must be on before you play.
-
-## 2. Play (3 minutes; do not explain the game to yourself first)
+Open the **Browser** and enter exactly:
+**`https://iftiikhaarr-glitch.github.io/palmful/?debug=1`**
+Pinch **Enter AR**. If asked to allow hand tracking or spatial data, choose **Allow**.
 
 | Time | Do this |
 |---|---|
-| 0:00–0:30 | Hold your **right hand out, palm up**, about 30 cm in front of your chest. A seed falls into it and hatches. Then keep the hand **completely still for 20 s**. |
-| 0:30–1:30 | Play: tip your hand slowly so Mote slides to the glowing fingertip. Try for all three blooms. Move naturally, as you would if nobody were measuring. |
+| 0:00–0:30 | Hold your **right hand out, palm up**, about 30 cm in front of your chest. A seed falls into it and hatches. Keep the hand **completely still for 20 s**. |
+| 0:30–1:30 | Tip your hand slowly so Mote slides to the glowing fingertip. Try for all three blooms. Move naturally. |
 | 1:30–2:00 | Cup your hand a little, roll it sideways, turn it palm-down for 3 s, then palm-up again. |
-| 2:00–2:30 | Hide your hand behind your back for 5 s, then bring it back. Press the Meta button once, then return to the app. |
-| 2:30–3:00 | Hold palm up and still again for 20 s, then stop recording. |
+| 2:00–2:30 | Hide your hand behind your back for 5 s, then bring it back. Press the Meta button once, then return. |
+| 2:30–3:00 | Hold palm up and still for 20 s. Stop recording. |
 
-The small panel above your hand shows the debug readings.
+## 3. Part B: Catch (3 minutes)
 
-## 3. Send back
+Open: **`https://iftiikhaarr-glitch.github.io/palmful/?catch=1&debug=1`**
+Pinch **Enter AR**.
 
-1. **The video** (Meta Horizon phone app → Gallery, or the headset's Files → Videos). Uncut,
-   about 3 minutes.
-2. **Two photos of the debug panel**: one at about 0:30 (after the first
-   still hold) and one at the end. Take them with **Meta button → Camera →
-   Take photo**. If photos are awkward, read the numbers aloud in the video.
-3. **These answers** (one line each):
-   - Headset: Quest 3 or 3S? Lighting: bright, normal or dim?
-   - Did Mote look like it was **sitting on your skin**? (yes / mostly / no)
-   - Did you understand what to do without being told? What confused you?
-   - Anything that felt uncomfortable (arm tired, eyes, nausea)?
+| Time | Do this |
+|---|---|
+| 0:00–0:20 | **Cup calibration** (read the `cup` number on the panel): hold your hand palm up **flat** for 5 s, then **relaxed** (natural, slightly curled) for 5 s, then **gently cupped** (as if holding water) for 5 s. Say each number aloud. |
+| 0:20–1:40 | Play: a seed glows, then drifts down. Move your **open** palm under it (the ring turns green), let it land, then **gently cup**. Try to catch three. Say "attempt" each time you deliberately go for one. |
+| 1:40–2:10 | **False-catch check**: when the next seed lands in your open palm, keep the hand open and still for 5 s (it must *not* be caught). Then cup to catch it. |
+| 2:10–2:40 | **Miss and loss check**: let one seed fall past without moving. Then, while a seed is falling, hide your hand for 3 s and bring it back (the seed should pause, not be lost). |
+| 2:40–3:00 | Make a fist to replay, open your hand. Stop recording. |
 
-The debug panel lines:
+## 4. Send back
 
-```
-fps 72  tracked 98%  palm-up 95%
-jitter 1.2 mm  losses 1  longest 300 ms
-play  palm  calm  blooms 1  1st bloom 24.0 s
-```
+1. **Both videos**, uncut (Meta Horizon phone app → Gallery, or the headset's
+   Files → Videos).
+2. **A photo of the debug panel at the end of each part** (Meta button →
+   Camera → Take photo), or read the numbers aloud in the video.
+3. **One line each:**
+   - Quest 3 or 3S? Lighting: bright, normal or dim?
+   - Bloom: did Mote look like it was **sitting on your skin**? (yes / mostly / no)
+   - Catch: did moving and cupping **register naturally**? Any catch you did
+     not mean to make? Any miss that felt unfair?
+   - Which one would you rather play again, and why?
+   - Anything uncomfortable (arm tired, eyes, nausea)?
 
-## 4. Pass / fail (decided before any results; do not change afterwards)
+Debug panel, Bloom: `fps 72  tracked 98%  palm-up 95%` / `jitter 1.2 mm …` /
+`play  palm  calm  blooms 1 …`. Catch: same first two lines, then
+`falling  caught 1  missed 0  spilled 0  cup 0.03`.
 
-| Check | Pass | Marginal | Fail | Where it comes from |
-|---|---|---|---|---|
-| **Palm tracking** | `tracked` ≥ 95 % | 90–94 % | < 90 % | panel at end |
-| **Attachment, still** | `jitter` ≤ 2 mm during a still hold | 2–3 mm | > 3 mm | panel at 0:30 and end (only read it during still holds; it rises when you move on purpose) |
-| **Attachment, moving** (the deciding check) | In the video, Mote and its shadow stay on the skin during slow tilts; any gap or lag is smaller than a fingertip width and recovers within a moment | brief slips during fast moves only | Mote visibly floats off, lags behind or swims around the palm during normal slow tilts | video, 0:30–1:30 |
-| **Frame rate** | `fps` ≥ 72 | 60–71 (meets the competition minimum of 60) | < 60 | panel |
-| **Recovery** | after hiding the hand, Mote waits and resumes in place; Meta button pause resumes cleanly | | Mote jumps to the wrong place, disappears for good, or the page needs a reload | video, 2:00–2:30 |
+## 5. Pass / fail (decided before any results; do not change afterwards)
 
-**Decision:**
+**Both parts**
 
-- **Palmful continues** if tracking and both attachment checks pass (marginal is acceptable once).
-- **Palmful is abandoned for "Leaf"** (Mote rides a leaf held in a pinch) if palm tracking or the moving-attachment check fails.
-- **Low frame rate** means simplify, not abandon.
-- **Confusion** means fix the first minute, not abandon.
+| Check | Pass | Marginal | Fail |
+|---|---|---|---|
+| Frame rate (`fps`) | ≥ 72 | 60–71 (the competition minimum is 60) | < 60 |
+| Hand tracked (`tracked`) | ≥ 95 % | 90–94 % | < 90 % |
+| Recovery after hiding the hand | resumes in place | | jumps, vanishes, or needs a reload |
 
-Nothing here has been measured on a Quest yet. All results so far come from an emulator.
+**Part A: Bloom.** This part decides whether Mote visibly stays on a real palm.
+
+| Check | Pass | Marginal | Fail |
+|---|---|---|---|
+| Attachment while still (`jitter`, read only during still holds) | ≤ 2 mm | 2–3 mm | > 3 mm |
+| Attachment while moving (video, 0:30–1:30) | Mote and its shadow stay on the skin; any gap or lag is smaller than a fingertip and recovers at once | brief slips on fast moves only | visibly floats off, lags or swims during slow tilts |
+
+**Part B: Catch.** This part decides whether moving and cupping register naturally.
+
+| Check | Pass | Marginal | Fail |
+|---|---|---|---|
+| False catches (a catch the tester did not intend, including the 5 s open-hand hold) | 0 | | any |
+| Deliberate attempts that end in a catch | ≥ 80 % | 60–79 % | < 60 % |
+| Cup separation (calibration numbers) | flat and relaxed < 0.30, gentle cup > 0.50 | relaxed 0.30–0.42 | relaxed ≥ 0.42 (relaxed hands would catch) or gentle cup < 0.42 (cups would not register) |
+| Tracking loss mid-fall | seed pauses, then can still be caught | | seed is lost or counted as a miss |
+
+## 6. Which version to keep
+
+Decide from the evidence above, in this order:
+
+| Bloom result | Catch result | Keep |
+|---|---|---|
+| Pass | Fail | **Bloom** |
+| Fail | Pass | **Catch**. It needs only a coarse palm position and a cup, not a creature that looks glued to the skin. |
+| Pass | Pass | The one the tester would rather play again. If there's no preference, **Bloom**: it is the more original idea, while catching falling objects is a familiar VR mechanic. |
+| Fail | Fail | Neither. Switch to **Leaf** (Mote rides a leaf held in a pinch). |
+
+A cup-separation result in the Catch "Marginal" or "Fail" column with clean
+play otherwise means we change `CUP_ON`, the cup threshold (now 0.42), using the
+recorded numbers, and retest. It is not a reason to drop Catch by itself. Low
+frame rate means simplify, not abandon. Confusion in the first minute means fix
+the onboarding, not the mechanic.

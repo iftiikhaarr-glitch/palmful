@@ -13,8 +13,10 @@ abandoning the concept.
 
 ## Try it on a laptop (no headset)
 
-Open **https://iftiikhaarr-glitch.github.io/palmful/?emulate=1** in Chrome or
-Edge and click **Start**. A seed floats, waiting for a palm.
+Two versions. Both run in Chrome or Edge with an emulated hand. Click
+**Start**, then use the keys shown in the panel.
+
+### Bloom (default): https://iftiikhaarr-glitch.github.io/palmful/?emulate=1
 
 | Key | Does |
 |---|---|
@@ -27,17 +29,36 @@ Edge and click **Start**. A seed floats, waiting for a palm.
 One full session: Space → the seed lands and hatches; when Mote sits still a
 golden trail shows the way. ↑ ×7 → middle fingertip blooms. Space, ↓ ×6 →
 back to the palm. Space, → ×6, then ↑ ×7, ← ×4 → index blooms. Space, ↓ ×6,
-Space, ← ×6, then ↑ ×7, → ×4 → ring blooms: "All three in bloom". F, then F
-again → hatches again.
+Space, ← ×6, then ↑ ×7, → ×4 → ring blooms. F, then F again → hatches again.
 
-Add `&debug=1` for the metrics panel. Laptop mode uses Meta's IWER emulator with
-a narrowed field of view and dots in place of a hand. It shows that the game
-logic works; it does **not** show tracking quality or Quest performance.
+### Catch (experiment): https://iftiikhaarr-glitch.github.io/palmful/?emulate=1&catch=1
+
+| Key | Does |
+|---|---|
+| Space | raise your hand palm up (press again later: back to the start position) |
+| ← / → | move the hand left / right (2 cm per press; hold to repeat) |
+| ↑ / ↓ | move the hand forward / back |
+| W / S | move the hand up / down |
+| C | cup / open the hand |
+| T | tip the palm sideways (spills a resting seed) |
+| F | toggle a fist (after three catches, a fist replays) |
+| H | lower / raise the hand (simulates tracking loss) |
+
+One full session: Space → the seed glows, then drifts down. Hold ← or → (and
+↑/↓ if needed) until the ring under the seed turns green; the seed lands in
+the open palm. Press C → "Caught 1 of 3", a flower grows; press C again to
+open. Repeat for the next seeds, which come from the other side. Three catches →
+"All three caught". If you miss, the seed comes back. F, then F again to
+open → a new seed.
+
+Add `&debug=1` to either for the metrics panel. Laptop mode uses Meta's IWER
+emulator with dots in place of a hand. It shows that the game logic works; it does
+**not** show tracking quality, cup detection on real hands, or Quest performance.
 
 ## Test on a Quest 3 / 3S
 
-Follow [`docs/QUEST_TEST_GUIDE.md`](docs/QUEST_TEST_GUIDE.md) (3 minutes of play,
-with what to send back and pass/fail criteria).
+Follow [`docs/QUEST_TEST_GUIDE.md`](docs/QUEST_TEST_GUIDE.md): both versions, 3 minutes
+each, what to send back, pass/fail criteria, and which version to keep.
 
 ## Develop
 
@@ -48,7 +69,8 @@ npm install
 npm test          # simulation unit tests (Node, no browser)
 npm run build     # production build in dist/
 npx vite preview --port 4173 &   # serves dist/ at https://localhost:4173
-npm run e2e -- https://localhost:4173/ .   # plays a full session headlessly
+npm run e2e -- https://localhost:4173/ .   # plays a full bloom session headlessly
+node test/catch-e2e.mjs https://localhost:4173/ .   # plays a full catch session
 node test/landing-e2e.mjs https://localhost:4173/ .   # 2D landing without WebXR
 npm run dev       # IWSDK dev server + emulator in a managed browser
 ```
@@ -60,6 +82,7 @@ npm run dev       # IWSDK dev server + emulator in a managed browser
 src/palm/math.ts           allocation-free vector helpers
 src/palm/hand-frame.ts     WebXR joints -> palm frame + finger paths, One-Euro filter
 src/palm/creature-sim.ts   friction sliding, finger walking, bloom (pure, tested)
+src/palm/catch-sim.ts      catch mode: falling seed, landing, cup, miss (pure, tested)
 src/palmful-system.ts      IWSDK system: reads joints, renders, metrics, restart
 src/laptop-emulator.ts     ?emulate=1 laptop mode (IWER + keyboard hand)
 src/landing.ts             2D page: Enter AR button, or where to play
