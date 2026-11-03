@@ -65,6 +65,13 @@ Keep this file current; it is how work continues across sessions.
 - The first seed was placed using the head pose of the first frame, before it had settled. The waiting seed now follows your view until a palm is offered.
 - The completion panel could cover curled fingers. It now sits just above the highest hand or flower point in view, in both modes.
 
+## Laptop-view visibility (3 Nov 2026)
+
+- `?emulate` now draws a dark room (backdrop sphere and floor) inside the rendered XR view. The emulator otherwise composites AR over white. Without `?emulate` no backdrop exists, which a test checks, so Quest passthrough is never covered.
+- Hand joints are bright, with bone lines. The landing ring is thicker and untonemapped: amber while the seed falls, green when the palm is in place or on a catch (it bursts outward), red on a miss (it shrinks and sinks).
+- The miss cue now plays at the ring, where the player is looking; it used to play out of view. Cues hold full strength for most of their 1.5 s.
+- **Measured:** background luminance 0.004. Contrast against it: hand joints 13.9:1, Mote 10.5:1, bloom seed about 5.5:1, catch seed 18.7:1, ring 7.8:1. The catch and miss frames contain the right cue colour and none of the other.
+
 ## Not verified (needs a headset): see `docs/DEVICE_TEST.md`
 
 ## Open issues

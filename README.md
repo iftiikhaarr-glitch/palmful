@@ -52,7 +52,8 @@ open. Repeat for the next seeds, which come from the other side. Three catches â
 open â†’ a new seed.
 
 Add `&debug=1` to either for the metrics panel. Laptop mode uses Meta's IWER
-emulator with dots in place of a hand. It shows that the game logic works; it does
+emulator and draws a dark room into the emulated view (only with `?emulate`;
+the real Quest AR view is never covered), with dots and lines in place of a hand. It shows that the game logic works; it does
 **not** show tracking quality, cup detection on real hands, or Quest performance.
 
 ## Test on a Quest 3 / 3S
@@ -71,7 +72,8 @@ npm run build     # production build in dist/
 npx vite preview --port 4173 &   # serves dist/ at https://localhost:4173
 npm run e2e -- https://localhost:4173/ .   # plays a full bloom session headlessly
 node test/catch-e2e.mjs https://localhost:4173/ .   # plays a full catch session
-node test/landing-e2e.mjs https://localhost:4173/ .   # 2D landing without WebXR
+node test/landing-e2e.mjs https://localhost:4173/ .   # 2D landing; backdrop only with ?emulate
+node test/contrast-check.mjs https://localhost:4173/ .   # laptop view: object contrast >= 3:1
 npm run dev       # IWSDK dev server + emulator in a managed browser
 ```
 

@@ -15,8 +15,14 @@ try {
   const href = await page.getAttribute('#laptop-link', 'href');
   if (!/Meta Quest 3 \/ 3S Browser/.test(text) || !href.includes('emulate=1')) throw new Error('landing content wrong: ' + text + ' ' + href);
   await page.screenshot({ path: `${shots}/landing-desktop.png` });
+  await page.waitForFunction(() => window.__palmful !== undefined, null, { timeout: 30000 });
+  if (await page.evaluate(() => window.__palmful.hasBackdrop)) throw new Error('backdrop present without ?emulate');
+  console.log('OK   without ?emulate there is no backdrop in the scene (real AR stays see-through)');
   await page.click('#laptop-link');
   await page.waitForSelector('#laptop-start', { timeout: 60000 });
+  await page.waitForFunction(() => window.__palmful !== undefined, null, { timeout: 30000 });
+  if (!(await page.evaluate(() => window.__palmful.hasBackdrop))) throw new Error('laptop mode is missing its backdrop');
+  console.log('OK   with ?emulate the dark backdrop is in the scene');
   console.log('OK   landing explains Quest Browser and links to laptop demo; link opens laptop mode');
   ok = true;
 } catch (e) {

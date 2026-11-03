@@ -19,6 +19,12 @@ import {
   MeshStandardMaterial,
   PerspectiveCamera,
   PlaneGeometry,
+  AdditiveBlending,
+  BackSide,
+  BufferAttribute,
+  BufferGeometry,
+  LineBasicMaterial,
+  LineSegments,
   RingGeometry,
   SphereGeometry,
   Vector3,
@@ -66,6 +72,20 @@ const DEBUG = PARAMS.has('debug');
 const SKELETON = PARAMS.has('skeleton') || PARAMS.has('emulate');
 /** Experimental catch mode (?catch=1); the three-bloom game is the default. */
 export const MODE: 'bloom' | 'catch' = PARAMS.has('catch') ? 'catch' : 'bloom';
+/** Laptop emulator only: draw a dark room into the XR view (never on a Quest). */
+const EMULATED_VIEW = PARAMS.has('emulate');
+/** Cue colours, chosen to stay distinct on dark backgrounds and in passthrough. */
+const CUE = { ready: '#2bff6e', waiting: '#ffb020', miss: '#ff3b3b' };
+const FLASH_S = 1.5;
+/** Joint pairs drawn as bones in the laptop view (indices into this.keys). */
+// keys: 0 wrist, 1 pinky knuckle, 2-5 index, 6-9 middle, 10-13 ring
+const BONES: Array<[number, number]> = [
+  [0, 1], [0, 2], [0, 6], [0, 10],
+  [2, 3], [3, 4], [4, 5],
+  [6, 7], [7, 8], [8, 9],
+  [10, 11], [11, 12], [12, 13],
+  [2, 6], [6, 10], [10, 1],
+];
 /** Fingertips that grow a flower, in order (both modes). */
 const FLOWER_ORDER: FingerName[] = ['middle', 'index', 'ring'];
 const GRAVITY = v3(0, -9.81, 0);
@@ -131,6 +151,10 @@ declare global {
       trailVisible: boolean;
       hint: string;
       layout: () => LayoutReport;
+      /** true only in the laptop emulator: a dark room is drawn into the XR view */
+      hasBackdrop: boolean;
+      /** screen positions (0..1, top-left origin) of key objects, for contrast tests */
+      screenPoints: () => Record<string, Array<[number, number]>>;
     };
   }
 }
@@ -154,6 +178,7 @@ export class PalmfulSystem extends createSystem({}) {
   private hintText = '';
   private flowers: Partial<Record<FingerName, Group>> = {};
   private jointDots: Mesh[] = [];
+  private bones: LineSegments | null = null;
   private seed!: Mesh;
   private seedFrom = new Vector3();
   private trail: Mesh[] = [];
@@ -173,8 +198,10 @@ export class PalmfulSystem extends createSystem({}) {
   private nextSpawn = v3();
   private headV = v3();
   private cup = 0;
-  private flash: { color: string; t: number; x: number; y: number; z: number } | null = null;
+  /** catch: green ring bursts outward; miss: red ring shrinks and sinks */
+  private flash: { color: string; t: number; x: number; y: number; z: number; grow: boolean } | null = null;
   private lastEvent: CatchEvent = 'none';
+  private ringY = 0;
 
   private st: CreatureState = makeCreature();
   private joints: HandJoints = makeHandJoints();
@@ -239,18 +266,25 @@ export class PalmfulSystem extends createSystem({}) {
     this.buildBeacon();
     this.buildHint();
     if (SKELETON) {
-      const geo = new SphereGeometry(0.004, 8, 6);
+      const geo = new SphereGeometry(EMULATED_VIEW ? 0.0045 : 0.004, 10, 8);
       const mat = new MeshBasicMaterial({
-        color: PARAMS.has('emulate') ? '#7a6a5e' : '#e8d6c8',
-        transparent: true,
-        opacity: 0.6,
+        color: '#f2e6d8',
+        transparent: !EMULATED_VIEW,
+        opacity: EMULATED_VIEW ? 1 : 0.6,
       });
       for (let i = 0; i < this.keys.length; i++) {
         const m = new Mesh(geo, mat);
         this.jointDots.push(m);
         this.root.add(m);
       }
+      this.bones = new LineSegments(
+        new BufferGeometry().setAttribute('position', new BufferAttribute(new Float32Array(BONES.length * 6), 3)),
+        new LineBasicMaterial({ color: '#b9a99a', transparent: true, opacity: 0.85 }),
+      );
+      this.bones.frustumCulled = false;
+      this.root.add(this.bones);
     }
+    if (EMULATED_VIEW) this.buildEmulatorBackdrop();
     this.root.visible = false;
 
     // The seed waits in front of you before Mote exists.
@@ -282,6 +316,8 @@ export class PalmfulSystem extends createSystem({}) {
       trailVisible: false,
       hint: '',
       layout: () => this.layoutCheck(),
+      hasBackdrop: this.root.getObjectByName('emulator-backdrop') !== undefined,
+      screenPoints: () => this.screenPoints(),
     };
   }
 
@@ -522,6 +558,41 @@ export class PalmfulSystem extends createSystem({}) {
       this.jointDots[i].position.set(p.x, p.y, p.z);
       this.jointDots[i].visible = this.tracked;
     }
+    if (this.bones) {
+      this.bones.visible = this.tracked;
+      const attr = this.bones.geometry.getAttribute('position') as BufferAttribute;
+      const a = attr.array as Float32Array;
+      BONES.forEach(([i, j], n) => {
+        const p = this.keys[i].get(this.joints);
+        const q = this.keys[j].get(this.joints);
+        a.set([p.x, p.y, p.z, q.x, q.y, q.z], n * 6);
+      });
+      attr.needsUpdate = true;
+    }
+  }
+
+  /**
+   * Laptop emulator only (?emulate): a dark room drawn INTO the rendered XR
+   * view, so light objects are visible. The emulator otherwise composites the
+   * AR view over white. Never built on a real headset, so passthrough is
+   * never covered.
+   */
+  private buildEmulatorBackdrop(): void {
+    const room = new Mesh(
+      new SphereGeometry(8, 32, 16),
+      new MeshBasicMaterial({ color: '#15131c', side: BackSide, depthWrite: false }),
+    );
+    room.renderOrder = -10;
+    room.name = 'emulator-backdrop';
+    this.root.add(room);
+    const floor = new Mesh(
+      new CircleGeometry(2.5, 48),
+      new MeshBasicMaterial({ color: '#221e2b', depthWrite: false }),
+    );
+    floor.rotation.x = -Math.PI / 2;
+    floor.position.y = 0.002;
+    floor.renderOrder = -9;
+    this.root.add(floor);
   }
 
   private measureJitter(): void {
@@ -757,6 +828,32 @@ export class PalmfulSystem extends createSystem({}) {
     return report;
   }
 
+  private screenPoints(): Record<string, Array<[number, number]>> {
+    const xrCam = this.world.renderer.xr.getCamera() as unknown as { cameras?: PerspectiveCamera[] };
+    const cam = xrCam.cameras?.[0] ?? this.world.camera;
+    cam.updateMatrixWorld();
+    const out: Record<string, Array<[number, number]>> = {};
+    const add = (name: string, p: Vector3) => {
+      p.applyMatrix4(cam.matrixWorldInverse).applyMatrix4(cam.projectionMatrix);
+      if (Math.abs(p.x) > 1 || Math.abs(p.y) > 1) return;
+      (out[name] ??= []).push([(p.x + 1) / 2, (1 - p.y) / 2]);
+    };
+    if (this.tracked) {
+      for (const k of this.keys) {
+        const j = k.get(this.joints);
+        add('joint', this.root.localToWorld(new Vector3(j.x, j.y, j.z)));
+      }
+    }
+    if (this.seed.visible) add('seed', this.seed.getWorldPosition(new Vector3()));
+    if (this.mote.visible) add('mote', this.mote.getWorldPosition(new Vector3()));
+    if (this.ring?.visible) {
+      // a point on the ring itself (its right-hand edge)
+      this.ring.updateMatrixWorld();
+      add('ring', this.ring.localToWorld(new Vector3(CATCH_RADIUS - 0.0045, 0, 0)));
+    }
+    return out;
+  }
+
   private restart(): void {
     for (const f of FINGERS) {
       const g = this.flowers[f];
@@ -788,19 +885,20 @@ export class PalmfulSystem extends createSystem({}) {
     seedMat.emissiveIntensity = 0.9;
     this.halo = new Mesh(
       new SphereGeometry(0.016, 20, 14),
-      new MeshBasicMaterial({ color: '#ffe9a8', transparent: true, opacity: 0.25, depthWrite: false }),
+      new MeshBasicMaterial({ color: '#ffd27a', transparent: true, opacity: 0.25, depthWrite: false, blending: AdditiveBlending }),
     );
     this.seed.add(this.halo);
     // Landing ring: shows where the seed will come down, drawn at the height
     // of your palm and exactly the size of the catch area.
     this.ringMat = new MeshBasicMaterial({
-      color: '#ffd27a',
+      color: CUE.waiting,
       transparent: true,
-      opacity: 0.6,
+      opacity: 0.9,
+      toneMapped: false, // keep cue colours saturated (amber / green / red)
       side: DoubleSide,
       depthWrite: false,
     });
-    this.ring = new Mesh(new RingGeometry(CATCH_RADIUS - 0.006, CATCH_RADIUS, 48), this.ringMat);
+    this.ring = new Mesh(new RingGeometry(CATCH_RADIUS - 0.009, CATCH_RADIUS, 64), this.ringMat);
     this.ring.rotation.x = -Math.PI / 2;
     this.ring.visible = false;
     this.root.add(this.ring);
@@ -862,12 +960,14 @@ export class PalmfulSystem extends createSystem({}) {
       case 'catch':
         this.growFlower(FLOWER_ORDER[(cst.catches - 1) % 3]);
         this.chime(cst.catches >= 3 ? 'final' : 'bloom');
-        this.flash = { color: '#7dffa0', t: 0, x: cst.pos.x, y: cst.pos.y, z: cst.pos.z };
+        this.flash = { color: CUE.ready, t: 0, x: cst.pos.x, y: cst.pos.y, z: cst.pos.z, grow: true };
         if (this.metrics.firstBloomS === null) this.metrics.firstBloomS = this.metrics.sessionS;
         break;
       case 'miss':
         this.chime('miss');
-        this.flash = { color: '#ff6f6f', t: 0, x: cst.pos.x, y: cst.pos.y, z: cst.pos.z };
+        // show it where the player is looking (the landing ring), not where
+        // the seed finally drops out of view
+        this.flash = { color: CUE.miss, t: 0, x: cst.pos.x, y: this.ringY, z: cst.pos.z, grow: false };
         break;
       case 'spill':
         this.chime('spill');
@@ -918,26 +1018,29 @@ export class PalmfulSystem extends createSystem({}) {
     r.visible = showRing || this.flash !== null;
     if (showRing) {
       const y = this.tracked ? this.frame.center.y : cst.pos.y - 0.25;
+      this.ringY = y;
       r.position.set(cst.pos.x, y, cst.pos.z);
       r.scale.setScalar(1);
       const dx = cst.pos.x - this.frame.center.x;
       const dz = cst.pos.z - this.frame.center.z;
       const ready = this.tracked && this.frame.normal.y >= PALM_UP_MIN && Math.hypot(dx, dz) <= CATCH_RADIUS;
-      this.ringMat.color.set(ready ? '#7dffa0' : '#ffd27a');
-      this.ringMat.opacity = ready ? 0.85 : 0.5;
+      this.ringMat.color.set(ready ? CUE.ready : CUE.waiting);
+      this.ringMat.opacity = ready ? 1 : 0.85;
     }
     if (this.flash) {
       // catch (green) or miss (red): the ring bursts outward and fades
       const f = this.flash;
       f.t += dt;
-      const k = f.t / 0.8;
+      const k = f.t / FLASH_S;
       if (k >= 1) {
         this.flash = null;
       } else if (!showRing) {
-        r.position.set(f.x, f.y - 0.004, f.z);
-        r.scale.setScalar(1 + k * 1.5);
+        // shape differs as well as colour, so the cue reads without colour vision
+        r.position.set(f.x, f.y - 0.004 - (f.grow ? 0 : k * 0.06), f.z);
+        r.scale.setScalar(f.grow ? 1 + k * 1.5 : Math.max(0.05, 1 - k * 0.8));
         this.ringMat.color.set(f.color);
-        this.ringMat.opacity = 0.9 * (1 - k);
+        // full strength for most of the cue, fading only at the end
+        this.ringMat.opacity = k < 0.7 ? 1 : (1 - k) / 0.3;
       }
     }
   }

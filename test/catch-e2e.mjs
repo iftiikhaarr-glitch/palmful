@@ -5,6 +5,20 @@
 // completion panel layout, and a fist replay.
 // Usage: node test/catch-e2e.mjs https://localhost:4173/ [screenshotDir]
 import { chromium } from 'playwright';
+import { PNG } from 'pngjs';
+import fs from 'node:fs';
+
+/** Count strongly green / strongly red pixels in a screenshot (cue check). */
+function cuePixels(file) {
+  const png = PNG.sync.read(fs.readFileSync(file));
+  let green = 0, red = 0;
+  for (let i = 0; i < png.data.length; i += 4) {
+    const r = png.data[i], g = png.data[i + 1], b = png.data[i + 2];
+    if (g > 150 && g - Math.max(r, b) > 60) green++;
+    if (r > 150 && r - Math.max(g, b) > 60) red++;
+  }
+  return { green, red };
+}
 
 const base = process.argv[2] ?? 'https://localhost:4173/';
 const shots = process.argv[3] ?? '.';
@@ -74,12 +88,18 @@ try {
   const caught1 = await waitFor('gentle cup catches it: flower 1', (s) => s.seed.catches === 1, 15);
   const r1 = caught1.seed.round + 1; // the next seed's round
   await page.screenshot({ path: `${shots}/catch-4-caught.png` });
+  const cueCatch = cuePixels(`${shots}/catch-4-caught.png`);
+  log(cueCatch.green > 200 ? 'OK  ' : 'FAIL', 'catch cue on screen: green pixels', cueCatch.green, 'red', cueCatch.red);
+  if (cueCatch.green <= 200) throw new Error('no visible green catch cue');
   await press('C'); // open again
 
   // Next seed: stay put (it spawns at least 10 cm away), so it is missed.
   await waitFor('next seed falling', (s) => s.seed.state === 'falling' && s.seed.round === r1, 30);
   const missed = await waitFor('hand left where it was: the seed is missed', (s) => s.seed.state === 'missed', 30);
   await page.screenshot({ path: `${shots}/catch-5-missed.png` });
+  const cueMiss = cuePixels(`${shots}/catch-5-missed.png`);
+  log(cueMiss.red > 200 ? 'OK  ' : 'FAIL', 'miss cue on screen: red pixels', cueMiss.red, 'green', cueMiss.green);
+  if (cueMiss.red <= 200) throw new Error('no visible red miss cue');
   if (missed.seed.catches !== 1 || missed.seed.misses !== 1) throw new Error('miss should keep progress');
   await waitFor('the seed comes back for another try; progress kept', (s) => s.seed.round === r1 + 1 && s.seed.catches === 1 && s.seed.misses === 1, 30);
 

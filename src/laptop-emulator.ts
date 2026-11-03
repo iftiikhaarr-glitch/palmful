@@ -62,7 +62,7 @@ export async function installLaptopEmulator(): Promise<void> {
     const where = CATCH
       ? `x ${(off.x * 100).toFixed(0)} cm  fwd ${(-off.z * 100).toFixed(0)} cm  up ${(off.y * 100).toFixed(0)} cm${cupped ? '  CUPPED' : ''}${roll ? '  TILTED' : ''}`
       : `pitch ${pitch}°  roll ${roll}°`;
-    status.textContent = `${where}${fist ? '  FIST' : ''}${hidden ? '  HAND HIDDEN' : ''}`;
+    status.textContent = `${where}${fist ? '  FIST' : ''}${hidden ? '  HAND HIDDEN (Space to raise)' : ''}`;
   };
 
   // ---- overlay UI ----
@@ -107,6 +107,7 @@ export async function installLaptopEmulator(): Promise<void> {
     started = true;
     startBtn.style.display = 'none';
     await applyHand();
+    status.textContent = 'HAND HIDDEN (Space to raise)';
   });
 
   window.addEventListener('keydown', async (e) => {
