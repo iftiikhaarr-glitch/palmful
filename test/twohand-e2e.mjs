@@ -102,9 +102,13 @@ try {
   await page.screenshot({ path: `${shots}/two-2-progress.png` });
 
   // Pink (centre): engaged right hand lost mid-fall -> seed pauses (left ready)
-  await waitFor('pink falling', (s) => s.seed.kind === 'pink' && s.seed.state === 'falling', 30);
+  // Position the right hand while pink still glows in place, and 6 cm lower,
+  // so there is time to lose the hand mid-fall (avoids a timing race).
+  await waitFor('pink waiting', (s) => s.seed.kind === 'pink' && s.seed.state === 'waiting', 30);
+  await control('right');
+  await press('S', 3);
   await moveUnderSeed('right');
-  const before = await waitFor('pink above the right palm, right engaged', (s) => s.two.engaged === 'right' && s.seed.state === 'falling', 10);
+  const before = await waitFor('pink falling above the right palm, right engaged', (s) => s.two.engaged === 'right' && s.seed.state === 'falling', 15);
   await press('H');
   await page.waitForTimeout(2000);
   const paused = await state();
