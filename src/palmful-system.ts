@@ -70,7 +70,7 @@ import {
   stepCatch,
 } from './palm/catch-sim.js';
 import { type Vec3, v3 } from './palm/math.js';
-import { HandSilhouette } from './hand-silhouette.js';
+import { addSeeThrough, HandSilhouette } from './hand-silhouette.js';
 import { chooseHand, type Engagement, type HandView, makeEngagement, type Side } from './palm/two-hand.js';
 
 const PARAMS = new URLSearchParams(location.search);
@@ -99,6 +99,8 @@ interface HandTrack {
 }
 /** Laptop emulator only: draw a dark room into the XR view (never on a Quest). */
 const EMULATED_VIEW = PARAMS.has('emulate');
+/** Laptop diagnosis only: keep IWSDK's own hand outline/occluder visible (&iwsdkhand=1). */
+const KEEP_IWSDK_HAND = PARAMS.has('iwsdkhand');
 /** Cue colours, chosen to stay distinct on dark backgrounds and in passthrough. */
 const CUE = { ready: '#2bff6e', waiting: '#ffb020', miss: '#ff3b3b' };
 const FLASH_S = 1.5;
@@ -109,9 +111,9 @@ const FLASH_S = 1.5;
  */
 export type HandSize = 'S' | 'M' | 'L';
 const HAND_SIZES: Record<HandSize, { joint: number; bone: number; silhouette: number }> = {
-  S: { joint: 0.0035, bone: 0.0012, silhouette: 0.8 },
+  S: { joint: 0.0035, bone: 0.0012, silhouette: 0.86 },
   M: { joint: 0.005, bone: 0.002, silhouette: 1 },
-  L: { joint: 0.0072, bone: 0.0032, silhouette: 1.25 },
+  L: { joint: 0.0072, bone: 0.0032, silhouette: 1.16 },
 };
 export const HAND_SIZE_KEY = 'palmful.laptopHandSize';
 function readHandSize(): HandSize {
@@ -213,8 +215,17 @@ declare global {
       restartArmed: () => boolean;
       /** laptop test aid: freeze at the next catch/miss cue (true), resume (false) */
       holdCue: (on: boolean) => string;
+      /** laptop test aid: pause the game now (true) or resume (false); the hand still moves */
+      freeze: (on: boolean) => string;
+      /** laptop inspection camera: pause the game while the camera orbits the hand (the hand is not moved) */
+      inspect: (on: boolean) => boolean;
+      inspecting: boolean;
+      /** laptop test aid: completion card lines and their drawn widths (canvas px) */
+      cardText?: { maxW: number; lines: string[]; widths: number[] };
       /** laptop view: is the hand silhouette drawn, and the bright bones? */
       silhouette: () => { silhouette: boolean; bones: boolean };
+      /** laptop view: IWSDK's own hand visual per side (loaded from the input-profiles CDN; hidden in laptop mode) */
+      iwsdkHands: () => Record<string, { loaded: boolean; visible: boolean; meshes: number; at: number[]; inScene: boolean }>;
       twoHands: () => {
         enabled: boolean;
         engaged: string | null;
@@ -275,6 +286,8 @@ export class PalmfulSystem extends createSystem({}) {
   // catch mode
   private cst: CatchState | null = null;
   private ring!: Mesh;
+  /** laptop view: faint copy of the ring drawn where the hand model hides it */
+  private ringXray: Mesh | null = null;
   private ringMat!: MeshBasicMaterial;
   private halo!: Mesh;
   private headV = v3();
@@ -294,6 +307,8 @@ export class PalmfulSystem extends createSystem({}) {
   private flash: { color: string; t: number; x: number; y: number; z: number; grow: boolean } | null = null;
   /** laptop test aid: freeze the game at the next catch/miss cue (screenshots take ~3 s headless) */
   private cueHold: 'off' | 'armed' | 'frozen' = 'off';
+  /** laptop inspection camera: game paused (hand tracking and drawing continue) */
+  private inspecting = false;
   private ringY = 0;
 
   private st: CreatureState = makeCreature();
@@ -389,7 +404,7 @@ export class PalmfulSystem extends createSystem({}) {
         this.root.add(b);
       }
       if (EMULATED_VIEW) {
-        this.silhouette = new HandSilhouette();
+        this.silhouette = new HandSilhouette(FULL_SKELETON);
         this.root.add(this.silhouette.group);
       }
       if (EMULATED_VIEW) {
@@ -441,6 +456,29 @@ export class PalmfulSystem extends createSystem({}) {
         if (EMULATED_VIEW) this.cueHold = !on ? 'off' : this.cueHold === 'frozen' ? 'frozen' : 'armed';
         return this.cueHold;
       },
+      freeze: (on: boolean) => {
+        if (EMULATED_VIEW) this.cueHold = on ? 'frozen' : 'off';
+        return this.cueHold;
+      },
+      inspect: (on: boolean) => {
+        if (EMULATED_VIEW) this.inspecting = on;
+        window.__palmful!.inspecting = this.inspecting;
+        return this.inspecting;
+      },
+      inspecting: false,
+      iwsdkHands: () =>
+        Object.fromEntries(
+          SIDES.map((side) => {
+            const v = this.world.input.xr.visualAdapters.hand[side].visual;
+            let meshes = 0;
+            const at = new Vector3();
+            v?.model.traverse((o) => {
+              if ((o as Mesh).isMesh) meshes++;
+            });
+            v?.model.getWorldPosition(at);
+            return [side, { loaded: !!v, visible: !!v?.model.visible, meshes, at: [+at.x.toFixed(3), +at.y.toFixed(3), +at.z.toFixed(3)], inScene: !!v?.model.parent }];
+          }),
+        ),
       silhouette: () => ({
         silhouette: !!(this.silhouette?.group.visible || this.tracks?.left.silhouette?.group.visible),
         bones: this.boneMeshes.some((b) => b.visible),
@@ -543,6 +581,8 @@ export class PalmfulSystem extends createSystem({}) {
     );
     center.position.y = 0.0135;
     g.add(center);
+    // laptop view: a flower inside a closed fist still shows, faintly
+    if (EMULATED_VIEW && !FULL_SKELETON) addSeeThrough(g, 0.5, 0.4);
     g.scale.setScalar(0.001);
     this.root.add(g);
     return g;
@@ -585,7 +625,7 @@ export class PalmfulSystem extends createSystem({}) {
 
     if (this.tracked && this.frame.normal.y > 0.5) this.metrics.palmUpFrames++;
     if (MODE === 'catch') {
-      const dt = this.cueHold === 'frozen' ? 0 : delta;
+      const dt = this.cueHold === 'frozen' || this.inspecting ? 0 : delta;
       this.updateCatch(dt, time);
       this.renderJointDots();
       this.renderBeaconAndFlowers(time, dt);
@@ -597,10 +637,13 @@ export class PalmfulSystem extends createSystem({}) {
       d.catch = this.cst;
       d.cup = this.cup;
       d.palmCenter = this.frame.center; // two-hand mode switches frames
+      this.hideCardsWhileInspecting();
       this.reportFit(delta);
       return;
     }
-    this.advancePhase(delta);
+    // laptop inspection camera: the bloom game holds still (dt 0); the hand is still tracked and drawn
+    const g = this.inspecting ? 0 : delta;
+    this.advancePhase(g);
     const playing = this.phase === 'play' || this.phase === 'done';
 
     if (this.tracked && !playing) {
@@ -609,12 +652,12 @@ export class PalmfulSystem extends createSystem({}) {
       const before = this.st.slideTime;
       // Session end: after three blooms, a closed fist (held briefly) restarts.
       if (this.phase === 'done' && fingertipReach(this.joints) < FIST_REACH) {
-        this.fistT += delta;
+        this.fistT += g;
         if (this.fistT > 0.8) this.restart();
       } else {
         this.fistT = 0;
       }
-      const res = stepCreature(this.st, this.frame, GRAVITY, delta);
+      const res = stepCreature(this.st, this.frame, GRAVITY, g);
       if (this.metrics.firstSlideS === null && this.st.slideTime > before)
         this.metrics.firstSlideS = this.metrics.sessionS;
       if (res.bloomed && res.bloomFinger) this.onBloom(res.bloomFinger);
@@ -627,13 +670,25 @@ export class PalmfulSystem extends createSystem({}) {
     this.renderJointDots();
     this.renderMote(time);
     this.renderSeed(time);
-    this.renderTrail(time, delta);
-    this.renderBeaconAndFlowers(time, delta);
-    this.renderHint(delta);
+    this.renderTrail(time, g);
+    this.renderBeaconAndFlowers(time, g);
+    this.renderHint(g);
     const dbg = window.__palmful!;
     dbg.tracked = this.tracked;
     dbg.phase = this.phase;
+    this.hideCardsWhileInspecting();
     this.reportFit(delta);
+  }
+
+  /**
+   * Laptop inspection camera: the floating cards are drawn over everything
+   * (no depth test), so they would cover the hand when the camera looks at it
+   * from the side or from below. Hidden while inspecting; back on reset.
+   */
+  private hideCardsWhileInspecting(): void {
+    if (!this.inspecting) return;
+    this.hint.visible = false;
+    if (this.hud) this.hud.visible = false; // the progress card exists in catch mode only
   }
 
   /**
@@ -736,7 +791,7 @@ export class PalmfulSystem extends createSystem({}) {
           this.root.add(m);
         }
         if (EMULATED_VIEW) {
-          t.silhouette = new HandSilhouette();
+          t.silhouette = new HandSilhouette(FULL_SKELETON);
           this.root.add(t.silhouette.group);
         }
       }
@@ -784,25 +839,53 @@ export class PalmfulSystem extends createSystem({}) {
     this.tracked = chosen !== null;
   }
 
-  private renderJointDots(): void {
-    if (!SKELETON) return;
-    if (this.tracks) {
-      for (const t of [this.tracks.right, this.tracks.left]) this.drawSkeleton(t.joints, t.tracked, t.dots, t.bones, t.silhouette);
-    } else {
-      this.drawSkeleton(this.joints, this.tracked, this.jointDots, this.boneMeshes, this.silhouette);
+  /**
+   * Laptop emulator only: hide IWSDK's own hand visual (a white outline plus an
+   * invisible, depth-writing "occluder" hand meant for passthrough). Over the
+   * laptop hand model it hid most of the palm (black, with detached fingertips
+   * and a floating wrist) in real browsers. IWSDK re-shows it every frame in
+   * its input update (priority -4, before this system), so it is hidden here
+   * every frame, before rendering. Never runs on a headset. &iwsdkhand=1 keeps
+   * it, to compare.
+   */
+  private hideIwsdkHandVisuals(): void {
+    if (!EMULATED_VIEW || KEEP_IWSDK_HAND) return;
+    const hands = this.world.input.xr.visualAdapters.hand;
+    for (const side of SIDES) {
+      const visual = hands[side].visual;
+      if (visual) visual.model.visible = false;
     }
   }
 
-  private drawSkeleton(joints: HandJoints, tracked: boolean, dots: Mesh[], bones: Mesh[], sil: HandSilhouette | null): void {
+  private renderJointDots(): void {
+    this.hideIwsdkHandVisuals();
+    if (!SKELETON) return;
+    if (this.tracks) {
+      for (const t of [this.tracks.right, this.tracks.left]) this.drawSkeleton(t.joints, t.tracked, t.dots, t.bones, t.silhouette, t.side === 'left');
+    } else {
+      this.drawSkeleton(this.joints, this.tracked, this.jointDots, this.boneMeshes, this.silhouette, this.primary === 'left');
+    }
+  }
+
+  /** Joint lookup for the laptop hand model, without a per-frame closure. */
+  private atJoints: HandJoints | null = null;
+  private readonly atFn = (i: number): Vec3 => this.keys[i].get(this.atJoints!);
+  private jointAt(joints: HandJoints): (i: number) => Vec3 {
+    this.atJoints = joints;
+    return this.atFn;
+  }
+
+  private drawSkeleton(joints: HandJoints, tracked: boolean, dots: Mesh[], bones: Mesh[], sil: HandSilhouette | null, left: boolean): void {
     const size = HAND_SIZES[this.handSize];
-    sil?.update((i) => this.keys[i].get(joints), size.silhouette, tracked);
-    // with the silhouette, joints are small, subtle dots and bones are hidden
+    sil?.update(this.jointAt(joints), size.silhouette, tracked, left);
+    // with the laptop hand model, joint dots and bones are hidden in normal
+    // play; &debug=1 (or ?skeleton=1) shows the full skeleton through a faint hand
     const subtle = sil !== null && !FULL_SKELETON;
     for (let i = 0; i < dots.length; i++) {
       const p = this.keys[i].get(joints);
       dots[i].position.set(p.x, p.y, p.z);
-      dots[i].visible = tracked;
-      dots[i].scale.setScalar(subtle ? size.joint * 0.45 : size.joint);
+      dots[i].visible = tracked && !subtle;
+      dots[i].scale.setScalar(size.joint);
     }
     for (let n = 0; n < bones.length; n++) {
       const b = bones[n];
@@ -1255,6 +1338,11 @@ export class PalmfulSystem extends createSystem({}) {
     this.ring.rotation.x = -Math.PI / 2;
     this.ring.visible = false;
     this.root.add(this.ring);
+    if (EMULATED_VIEW && !FULL_SKELETON) {
+      // laptop view: the ring stays readable where the hand model covers it
+      this.ringXray = addSeeThrough(this.ring, 0.4)[0];
+      for (const k of SEED_KINDS) addSeeThrough(this.seedShapes[k], 0.55, 0.3);
+    }
 
     // Progress display (and, at the end, the completion card).
     this.hudCanvas = document.createElement('canvas');
@@ -1448,6 +1536,11 @@ export class PalmfulSystem extends createSystem({}) {
         this.ringMat.opacity = k < 0.7 ? 1 : (1 - k) / 0.3;
       }
     }
+    if (this.ringXray) {
+      const xm = this.ringXray.material as MeshBasicMaterial;
+      xm.color.copy(this.ringMat.color);
+      xm.opacity = this.ringMat.opacity * 0.45;
+    }
   }
 
   /**
@@ -1484,12 +1577,21 @@ export class PalmfulSystem extends createSystem({}) {
     c.textBaseline = 'middle';
     if (done) {
       c.fillStyle = '#fff4e0';
-      c.font = '700 78px system-ui, sans-serif';
-      c.fillText(this.fistT > 0 ? 'Hold it…' : '3/3  All three caught', cv.width / 2, 78);
+      const maxW = cv.width - 120; // stay inside the rounded panel whatever the system font
+      const title = this.fistT > 0 ? 'Hold it…' : '3/3  All three caught';
+      fitFont(c, title, maxW, '700', 78, 40);
+      c.fillText(title, cv.width / 2, 78);
       SEED_KINDS.forEach((k, i) => this.drawSeedIcon(c, k, cv.width / 2 + (i - 1) * 110, 165, 34, true, false));
       c.fillStyle = '#d8cbb8';
-      c.font = '50px system-ui, sans-serif';
-      c.fillText(this.restartArmed ? 'make a fist to play again' : 'open your hand, then make a fist to play again', cv.width / 2, 245);
+      const again = this.restartArmed ? 'make a fist to play again' : 'open your hand, then make a fist to play again';
+      fitFont(c, again, maxW, '400', 50, 28);
+      c.fillText(again, cv.width / 2, 245);
+      // laptop test aid: the line widths as drawn, to check they fit the card
+      if (EMULATED_VIEW) {
+        const againW = c.measureText(again).width;
+        fitFont(c, title, maxW, '700', 78, 40);
+        window.__palmful!.cardText = { maxW, lines: [title, again], widths: [c.measureText(title).width, againW] };
+      }
     } else {
       const w = cv.width / 3;
       SEED_KINDS.forEach((k, i) => {
@@ -1505,8 +1607,9 @@ export class PalmfulSystem extends createSystem({}) {
         }
         this.drawSeedIcon(c, k, cx, 105, 38, got, current);
         c.fillStyle = got ? '#fff4e0' : current ? '#f2e6d8' : '#9d93a6';
-        c.font = `${got || current ? 700 : 500} 56px system-ui, sans-serif`;
-        c.fillText(`${SEED_LABEL[k]} ${got ? 1 : 0}/1`, cx, 205);
+        const label = `${SEED_LABEL[k]} ${got ? 1 : 0}/1`;
+        fitFont(c, label, w - 60, got || current ? '700' : '500', 56, 32);
+        c.fillText(label, cx, 205);
       });
     }
     this.hudTex.needsUpdate = true;
@@ -1764,11 +1867,7 @@ export class PalmfulSystem extends createSystem({}) {
     c.fill();
     c.textAlign = 'center';
     c.fillStyle = '#fff4e0';
-    let size = 72;
-    do {
-      c.font = `600 ${size}px system-ui, sans-serif`;
-      size -= 4;
-    } while (size > 28 && c.measureText(title).width > cv.width - 96);
+    fitFont(c, title, cv.width - 96, '600', 72, 28);
     const done = this.phase === 'done';
     c.fillText(title, cv.width / 2, sub || done ? 92 : 112);
     if (done) {
@@ -1782,7 +1881,7 @@ export class PalmfulSystem extends createSystem({}) {
     }
     if (sub) {
       c.fillStyle = '#d8cbb8';
-      c.font = '54px system-ui, sans-serif';
+      fitFont(c, sub, cv.width - 96, '400', 54, 28);
       c.fillText(sub, cv.width / 2, done ? 206 : 160);
     }
     if (DEBUG) {
@@ -1791,5 +1890,17 @@ export class PalmfulSystem extends createSystem({}) {
       dbg.split('\n').forEach((line, i) => c.fillText(line, cv.width / 2, 270 + i * 52));
     }
     this.hintTex.needsUpdate = true;
+  }
+}
+
+/**
+ * Set the largest font (from `size` down to `min`) at which `text` fits in
+ * `maxW` canvas pixels. Canvas text is drawn in the viewer's system font, so a
+ * fixed size that fits on Linux can overflow its panel on Windows or macOS.
+ */
+function fitFont(c: CanvasRenderingContext2D, text: string, maxW: number, weight: string, size: number, min: number): void {
+  for (let s = size; ; s -= 2) {
+    c.font = `${weight} ${s}px system-ui, sans-serif`;
+    if (s <= min || c.measureText(text).width <= maxW) return;
   }
 }

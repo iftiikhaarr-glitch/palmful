@@ -6,6 +6,9 @@
 // catch/miss cue pixels, the completion card layout, and a fist restart that
 // resets all counts.
 // Usage: node test/catch-e2e.mjs https://localhost:4173/ [screenshotDir]
+//        WIDE_FONT=1 draws the in-scene cards in a wide font (DejaVu Sans, wider
+//        than Windows' Segoe UI) to check the completion text still fits its card.
+//        SIZE=WxH sets the window size; HEADED=1 opens a normal browser window.
 import { chromium } from 'playwright';
 import { PNG } from 'pngjs';
 import fs from 'node:fs';
@@ -28,9 +31,20 @@ function cuePixels(file) {
   return { green, red };
 }
 
-const browser = await chromium.launch({ args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader'] });
-const context = await browser.newContext({ ignoreHTTPSErrors: true, viewport: { width: 1280, height: 800 } });
+// SIZE=WxH (default 1280x800); HEADED=1 opens a normal browser window (e.g. under xvfb-run)
+const [VW, VH] = (process.env.SIZE ?? '1280x800').split('x').map(Number);
+const browser = await chromium.launch({ headless: !process.env.HEADED, args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', `--window-size=${VW},${VH + 87}`] });
+const context = await browser.newContext({ ignoreHTTPSErrors: true, viewport: { width: VW, height: VH } });
 const page = await context.newPage();
+if (process.env.WIDE_FONT) {
+  await page.addInitScript(() => {
+    const d = Object.getOwnPropertyDescriptor(CanvasRenderingContext2D.prototype, 'font');
+    Object.defineProperty(CanvasRenderingContext2D.prototype, 'font', {
+      get() { return d.get.call(this); },
+      set(v) { d.set.call(this, String(v).replace('system-ui', '"DejaVu Sans"')); },
+    });
+  });
+}
 const errors = [];
 page.on('pageerror', (e) => errors.push(String(e)));
 
@@ -134,7 +148,7 @@ try {
   let maxShift = 0;
   for (const name of ['joint', 'seed', 'ring']) {
     const a = sizes.S.pts[name] ?? [], b = sizes.L.pts[name] ?? [];
-    a.forEach(([x, y], i) => { if (b[i]) maxShift = Math.max(maxShift, Math.hypot((x - b[i][0]) * 1280, (y - b[i][1]) * 800)); });
+    a.forEach(([x, y], i) => { if (b[i]) maxShift = Math.max(maxShift, Math.hypot((x - b[i][0]) * VW, (y - b[i][1]) * VH)); });
   }
   check('hand joints, seed and ring stay aligned across sizes (max shift < 2 px)', maxShift < 2, `max shift ${maxShift.toFixed(2)} px`);
   await page.screenshot({ path: `${shots}/v2-size-L.png` });
@@ -198,6 +212,9 @@ try {
   const layout = await page.evaluate(() => window.__palmful.layout());
   check('completion card is shown and clear of the hand and flowers', layout.panelVisible && layout.overlaps === 0, JSON.stringify(layout));
   await page.screenshot({ path: `${shots}/v2-4-complete.png` });
+  const fits = (t) => t && t.widths.every((w) => w <= t.maxW);
+  const card1 = await page.evaluate(() => window.__palmful.cardText);
+  check('completion card: every line fits inside the card', fits(card1), JSON.stringify(card1));
 
   // The catching cup must not flow straight into a replay: going from the
   // cup directly to a fist (without opening) does nothing...
@@ -212,6 +229,10 @@ try {
   await press('F'); // fist off -> open hand
   await page.waitForFunction(() => window.__palmful.restartArmed(), null, { timeout: 5000 });
   log('OK  ', 'opening the hand arms the replay');
+  await page.waitForTimeout(300);
+  const card2 = await page.evaluate(() => window.__palmful.cardText);
+  check('completion card after opening: every line fits inside the card', fits(card2) && /^make a fist/.test(card2.lines[1]), JSON.stringify(card2));
+  await page.screenshot({ path: `${shots}/v2-4b-complete-open.png` });
   await press('F');
   await waitFor('fist restart: all counts reset, gold first', (s) => s.m.restarts >= 1 && s.seed.catches === 0 && s.seed.misses === 0 && !s.seed.caught.gold && !s.seed.caught.blue && !s.seed.caught.pink && s.seed.kind === 'gold' && s.phase === 'play', 20);
   await press('F');

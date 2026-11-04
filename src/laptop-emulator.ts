@@ -49,8 +49,12 @@ export async function installLaptopEmulator(): Promise<void> {
   let fovy = device.fovy;
   let pitch0: number | null = null; // camera pitch (degrees), set after Start
   let fitting = false;
+  /** Inspection camera (laptop only): orbit around the palm, game paused. */
+  type Vec = { x: number; y: number; z: number };
+  let inspect: { c: Vec; o: Vec; around: number; turn: number; home: { position: Vec; orientation: unknown } } | null = null;
   window.addEventListener('palmful-fit', async (e) => {
-    if (!started || pitch0 === null || fitting) return;
+    // __palmfulFitPaused: test aid for angled screenshots (camera left where it is put)
+    if (!started || pitch0 === null || fitting || inspect || (window as unknown as { __palmfulFitPaused?: boolean }).__palmfulFitPaused) return;
     fitting = true;
     try {
       const { x0, x1, y0, y1 } = (e as CustomEvent<{ x0: number; x1: number; y0: number; y1: number }>).detail;
@@ -97,6 +101,22 @@ export async function installLaptopEmulator(): Promise<void> {
 
   const call = (m: string, p?: Record<string, unknown>) =>
     remote.dispatch(m, p).catch((e: unknown) => console.warn('[laptop]', m, e));
+  /** Change hand pose with a short eased blend (IWER's pose fade), so open,
+   *  cup and fist flow into each other. The game reads the same blended
+   *  joints it draws, so what you see is what the catch logic sees. */
+  const POSE_FADE_S = 0.22;
+  // Thumb blends from IWER's own built-in poses (no new pose data). Neither the
+  // cup nor the fist check reads the thumb, so these change the look only:
+  // - cup: the thumb rises toward the fingers ('claw' thumb), so the hand reads
+  //   as a bowl instead of a flat palm with a thumb lying out to the side;
+  // - fist: the thumb rests along the curled index finger ('hook' thumb)
+  //   instead of arching high over the fingers.
+  const THUMB_BLEND: Record<string, Record<string, { poseId: string; weight: number }>> = {
+    cup: { thumb: { poseId: 'claw', weight: 0.8 } },
+    fist: { thumb: { poseId: 'hook', weight: 1 } },
+  };
+  const pose = (side: 'left' | 'right', poseId: string, duration = POSE_FADE_S) =>
+    call('set_hand_pose', { device: `hand-${side}`, poseId, fingers: THUMB_BLEND[poseId] ?? {}, ...(duration ? { duration, easing: 'minimum-jerk' } : {}) });
 
   const applyHand = async () => {
     if (!started) return;
@@ -112,6 +132,7 @@ export async function installLaptopEmulator(): Promise<void> {
       ? `x ${(off.x * 100).toFixed(0)} cm  fwd ${(-off.z * 100).toFixed(0)} cm  up ${(off.y * 100).toFixed(0)} cm${cupped ? '  CUPPED' : ''}${roll ? '  TILTED' : ''}`
       : `pitch ${pitch}°  roll ${roll}°`;
     status.textContent = `${TWO ? `${ctrl.toUpperCase()} hand: ` : ''}${where}${fist ? '  FIST' : ''}${hidden ? '  HAND HIDDEN (Space to raise)' : ''}`;
+    showInspect();
   };
 
   // ---- overlay UI ----
@@ -121,9 +142,9 @@ export async function installLaptopEmulator(): Promise<void> {
   panel.id = 'laptop-panel';
   panel.style.cssText =
     // bottom-left: clear of the seed lanes, progress display and hand
-    'position:fixed;left:12px;bottom:12px;z-index:2147483647;' + // above the emulator's full-screen view
+    'position:fixed;left:16px;bottom:12px;z-index:2147483647;' + // above the emulator's full-screen view
     'font:12px/1.4 system-ui,sans-serif;color:#fff4e0;background:rgba(20,16,28,.88);' +
-    'padding:8px 12px;border-radius:12px;max-width:min(260px,calc(100vw - 24px));text-align:left;' +
+    'padding:8px 12px;border-radius:12px;max-width:min(270px,calc(100vw - 28px));overflow-x:hidden;overflow-wrap:anywhere;text-align:left;' +
     // never taller than the window: scroll inside instead of being clipped
     'max-height:calc(100vh - 24px);overflow-y:auto;box-sizing:border-box';
   panel.innerHTML =
@@ -136,6 +157,9 @@ export async function installLaptopEmulator(): Promise<void> {
         '<span><b>Space</b> raise hand, palm up (again: back to start)<br><b>← →</b> move hand left / right<br><b>↑ ↓</b> move hand forward / back<br><b>W S</b> move hand up / down<br><b>C</b> cup / open the hand<br><b>1 2 3</b> test: pick gold / blue / pink seed<br><b>T</b> tip palm sideways (spill) &nbsp; <b>F</b> fist &nbsp; <b>H</b> lower hand<br>' +
         'Move under the seed (ring turns green), let it land, then press <b>C</b>.</span><br>'
       : '<span><b>Space</b> raise hand, palm up (again: level it)<br><b>↑ ↓</b> tip fingertips down / up<br><b>← →</b> roll toward pinky / index<br><b>F</b> fist &nbsp; <b>H</b> lower hand</span><br>') +
+    '<b>[ ]</b> inspect: orbit the camera around the hand, 5° a press (90° side, 180° back)<br>' +
+    '<b>- =</b> inspect: turn the camera around it, 5° a press &nbsp; <b>R</b> reset the camera<br>' +
+    'The game is paused while inspecting; <b>C</b> and <b>F</b> still change the pose.<br>' +
     '<b>?</b> hide / show this help<br></div>' +
     '<div style="margin:6px 0 2px">Hand display: ' +
     ['S', 'M', 'L']
@@ -144,6 +168,26 @@ export async function installLaptopEmulator(): Promise<void> {
     '</div>' +
     '<code id="laptop-status" style="opacity:.8"></code>';
   document.body.appendChild(panel);
+  // Keep the help panel fully on screen: the page itself never scrolls in
+  // laptop mode (arrow keys and Space are game keys), and if the browser's
+  // visible area is shifted (touchpad pinch-zoom), the panel follows it.
+  document.documentElement.style.overflow = 'hidden';
+  document.body.style.overflow = 'hidden';
+  document.body.style.margin = '0';
+  window.addEventListener('scroll', () => {
+    if (window.scrollX || window.scrollY) window.scrollTo(0, 0);
+  });
+  const vv = window.visualViewport;
+  if (vv) {
+    const follow = () => {
+      // offsets are 0 unless pinch-zoomed; keep the panel's bottom-left corner in view
+      const dx = vv.offsetLeft;
+      const dy = vv.offsetTop + vv.height - window.innerHeight;
+      panel.style.transform = dx || dy ? `translate(${dx}px, ${dy}px)` : '';
+    };
+    vv.addEventListener('resize', follow);
+    vv.addEventListener('scroll', follow);
+  }
   const status = panel.querySelector('#laptop-status') as HTMLElement;
   const startBtn = panel.querySelector('#laptop-start') as HTMLButtonElement;
   const helpBody = panel.querySelector('#laptop-help-body') as HTMLElement;
@@ -218,8 +262,84 @@ export async function installLaptopEmulator(): Promise<void> {
     status.textContent = 'HAND HIDDEN (Space to raise)';
   });
 
+  // ---- inspection camera (laptop only) ----
+  // Moves only the emulated headset, around the palm centre the game uses:
+  //   [ ]  orbit around the hand's length, 5° a press, up to 180° either way:
+  //        90° looks at its side, 180° at its back (from below);
+  //   - =  turn around it (turntable about the vertical), 5° a press;
+  //   R    put the camera back and resume.
+  // The game is paused meanwhile (the per-frame pause the tests use) and the
+  // camera fit is off. The hand is not moved. Never present on a headset.
+  const game = () => (window as unknown as { __palmful?: { palmCenter: Vec; tracked: boolean; inspect?: (on: boolean) => boolean } }).__palmful;
+  const showInspect = () => {
+    if (inspect) status.textContent = `INSPECT  around ${inspect.around}°  turn ${inspect.turn}°  (game paused, R resets)`;
+  };
+  const placeCamera = async () => {
+    if (!inspect) return;
+    const { c, o } = inspect;
+    const t = (inspect.around * Math.PI) / 180;
+    const p = (inspect.turn * Math.PI) / 180;
+    // around the hand's length (the fingers point along -Z; + goes to the index / thumb side first)
+    const x1 = o.x * Math.cos(t) + o.y * Math.sin(t);
+    const y1 = -o.x * Math.sin(t) + o.y * Math.cos(t);
+    // then turn about the vertical
+    const x2 = x1 * Math.cos(p) + o.z * Math.sin(p);
+    const z2 = -x1 * Math.sin(p) + o.z * Math.cos(p);
+    await call('set_transform', { device: 'headset', position: { x: c.x + x2, y: c.y + y1, z: c.z + z2 } });
+    await call('look_at', { device: 'headset', target: c });
+    showInspect();
+  };
+  let entering: Promise<void> | null = null;
+  const startInspect = async () => {
+    const g = game();
+    const head = (await call('get_transform', { device: 'headset' })) as { position: Vec; orientation: unknown } | undefined;
+    if (!g || !head) return;
+    // orbit centre: the palm centre the game uses (or where the hand rises, while it is down)
+    const c = g.tracked ? { ...g.palmCenter } : { x: WRIST.x, y: WRIST.y + 0.03, z: WRIST.z - 0.06 };
+    const o = { x: head.position.x - c.x, y: head.position.y - c.y, z: head.position.z - c.z };
+    inspect = { c, o, around: 0, turn: 0, home: { position: { ...head.position }, orientation: head.orientation } };
+    g.inspect?.(true);
+  };
+  const inspectKey = async (e: KeyboardEvent): Promise<boolean> => {
+    const k = e.key;
+    const around = k === '[' ? -1 : k === ']' ? 1 : 0;
+    const turn = k === '-' || k === '_' ? -1 : k === '=' || k === '+' ? 1 : 0;
+    if (around || turn) {
+      e.preventDefault();
+      if (!inspect) {
+        // one shared start, so quick repeated presses cannot start it twice
+        entering ??= startInspect().finally(() => (entering = null));
+        await entering;
+        if (!inspect) return true;
+      }
+      inspect.around = Math.max(-180, Math.min(180, inspect.around + around * STEP));
+      inspect.turn = Math.max(-180, Math.min(180, inspect.turn + turn * STEP));
+      await placeCamera();
+      return true;
+    }
+    if (k === 'r' || k === 'R') {
+      if (inspect) {
+        const home = inspect.home;
+        inspect = null;
+        await call('set_transform', { device: 'headset', position: home.position, orientation: home.orientation });
+        game()?.inspect?.(false);
+        await applyHand();
+      }
+      return true;
+    }
+    if (!inspect) return false;
+    // While inspecting only the pose keys work (C cup, F fist); moving the hand is off.
+    const lk = k.toLowerCase();
+    if (lk === 'c' || lk === 'f') return false;
+    if (k !== '?') e.preventDefault();
+    return true;
+  };
+
   window.addEventListener('keydown', async (e) => {
     if (!started) return;
+    // stop the browser scrolling the page on game keys, before any await
+    if (e.key === ' ' || e.key.startsWith('Arrow')) e.preventDefault();
+    if (await inspectKey(e)) return;
     let handled = true;
     if (CATCH) {
       switch (e.key) {
@@ -247,7 +367,7 @@ export async function installLaptopEmulator(): Promise<void> {
         case 'C':
           cupped = !cupped;
           fist = false;
-          await call('set_hand_pose', { device: `hand-${ctrl}`, poseId: cupped ? 'cup' : 'flat' });
+          await pose(ctrl, cupped ? 'cup' : 'flat');
           break;
         case 't':
         case 'T':
@@ -270,14 +390,14 @@ export async function installLaptopEmulator(): Promise<void> {
           if (hidden) {
             hidden = false;
             await call('set_connected', { device: `hand-${ctrl}`, connected: true });
-            if (ctrl === 'left') await call('set_hand_pose', { device: 'hand-left', poseId: cupped ? 'cup' : 'flat' });
+            if (ctrl === 'left') await pose('left', cupped ? 'cup' : 'flat', 0);
           }
           break;
         case 'f':
         case 'F':
           fist = !fist;
           cupped = false;
-          await call('set_hand_pose', { device: `hand-${ctrl}`, poseId: fist ? 'fist' : 'flat' });
+          await pose(ctrl, fist ? 'fist' : 'flat');
           break;
         case 'h':
         case 'H':
@@ -328,7 +448,7 @@ export async function installLaptopEmulator(): Promise<void> {
       case 'f':
       case 'F':
         fist = !fist;
-        await call('set_hand_pose', { device: 'hand-right', poseId: fist ? 'fist' : 'flat' });
+        await pose('right', fist ? 'fist' : 'flat');
         break;
       case 'h':
       case 'H':
