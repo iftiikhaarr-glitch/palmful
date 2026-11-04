@@ -130,10 +130,22 @@ the first real-hand evidence.
 |---|---|---|---|
 | False catches (a catch the tester did not intend, including the 5 s open-hand hold) | 0 | | any |
 | Deliberate attempts that end in a catch | ≥ 80 % | 60–79 % | < 60 % |
-| Cup separation (calibration numbers) | flat and relaxed < 0.30, gentle cup > 0.50 | relaxed 0.30–0.42 | relaxed ≥ 0.42 (relaxed hands would catch) or gentle cup < 0.42 (cups would not register) |
+| Cup separation (calibration numbers, see the table below) | all three readings pass | worst reading marginal | any reading fails |
 | Tracking loss mid-fall | seed pauses, then can still be caught | | seed is lost or counted as a miss |
 | Readability | tester names the current seed and the progress at a glance | needs a second look | confuses colours or misreads progress |
 | No accidental replay | holding the catching cup or a squeeze after 3/3 never restarts | | the result is wiped without an open-then-fist |
+
+**Cup calibration readings.** The game counts a hand as cupped when the `cup`
+number is 0.42 or more (`CUP_ON`). An open hand (flat or relaxed) must stay
+clearly below that, and a gentle cup clearly above it. Each reading falls in
+exactly one column; the cup-separation row above takes the worst of the three.
+Marginal here is the same as "Inconclusive — retest" in the quick checklist.
+
+| Reading | Pass | Marginal (inconclusive — retest) | Fail |
+|---|---|---|---|
+| Flat | below 0.30 | 0.30 or more, below 0.42 | 0.42 or more (an open hand would catch) |
+| Relaxed | below 0.30 | 0.30 or more, below 0.42 | 0.42 or more (a resting hand would catch) |
+| Gently cupped | above 0.50 | 0.42 to 0.50 | below 0.42 (a cup would not register) |
 
 ## 6. Which version to keep
 
