@@ -38,13 +38,14 @@ Open **https://iftiikhaarr-glitch.github.io/palmful/?debug=1** and pinch
 Open **https://iftiikhaarr-glitch.github.io/palmful/?catch=1&debug=1** and
 pinch **Enter AR**.
 
-- [ ] **Opening check (10 s), before raising your hand.** Keep both hands
-      out of sight (behind your back or at your sides). A seed waits in front
-      of you, pulsing, with **"Hold out your hand"** just under it. Look normally at it, then tip your head
+- [ ] **Opening check (10 s), before raising your hand.** Stay seated and
+      rest both hands comfortably out of the headset's view, for example
+      lowered at your sides (no need to hold them behind your back). A seed
+      waits in front of you, pulsing, with **"Hold out your hand"** just under it. Look normally at it, then tip your head
       slightly downward. Say aloud: does its glow cover the "Hold out your
       hand" text, or make either the seed or the instruction hard to see?
       If it says "Turn your palm up" instead, the headset can see a hand:
-      hide your hands further and start again.
+      lower your hands a little further out of view and look again.
 - [ ] **Cup calibration.** Read the `cup` number aloud for 5 s each with your
       hand flat, relaxed (naturally curled) and gently cupped.
 - [ ] **Play.** A seed glows, then drifts down. Move your open palm under it
@@ -142,7 +143,9 @@ Some results point to a fix instead of a mode choice:
   and retest.
 - Low frame rate: simplify the scene.
 - Confusion in the first minute: fix the onboarding.
-- Catch opening glow covers or crowds the "Hold out your hand" text: adjust
-  the hint position or the pulse, then retest. Not a reason to drop Catch.
+- Catch opening glow covers the "Hold out your hand" text or makes the
+  opening confusing: record it as a usability issue. It needs a fix (hint
+  position or pulse) and a retest before the final mode choice. On its own it
+  is not a reason to drop Catch.
 
 Two-hand play stays optional whatever the result.

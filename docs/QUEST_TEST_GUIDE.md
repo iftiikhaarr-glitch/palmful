@@ -44,14 +44,15 @@ Pinch **Enter AR**. Three seeds, one at a time: **gold circle** (left lane),
 **blue diamond** (right lane), **pink triangle** (centre lane). The display
 above the lanes shows "Gold 0/1 · Blue 0/1 · Pink 0/1"; catch one of each.
 
-**Before raising your hand: opening check (10 s).** Keep both hands out of
-sight after **Enter AR** (behind your back or at your sides). A seed waits in front of you,
+**Before raising your hand: opening check (10 s).** After **Enter AR**, stay
+seated and rest both hands comfortably out of the headset's view, for example
+lowered at your sides (no need to hold them behind your back). A seed waits in front of you,
 pulsing, with **"Hold out your hand"** written just under it. For 10 s, look
 normally at the seed, then tip your head slightly downward and keep looking at
 it. Then answer aloud: **does the seed's glow cover the "Hold out your hand"
 text, or make either the seed or the instruction hard to see?** If the text reads "Turn
-your palm up" instead, the headset can see a hand: hide your hands further and
-start again.
+your palm up" instead, the headset can see a hand: lower your hands a little further out of view and
+look again.
 
 | Time | Do this |
 |---|---|
@@ -179,5 +180,7 @@ play otherwise means we change `CUP_ON`, the cup threshold (now 0.42), using the
 recorded numbers, and retest. It is not a reason to drop Catch by itself. Low
 frame rate means simplify, not abandon. Confusion in the first minute means fix
 the onboarding, not the mechanic. If the catch opening's pulsing glow covers
-or crowds the "Hold out your hand" text, we make the smallest change to the
-hint position or the pulse and retest; it is not a reason to drop Catch.
+the "Hold out your hand" text or makes the opening confusing, it is recorded as
+a usability issue: it needs the smallest fix (hint position or pulse) and a
+retest before the final mode choice. On its own it is not a reason to drop
+Catch.
