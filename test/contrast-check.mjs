@@ -3,8 +3,8 @@
 // between key objects (hand joints, seed, Mote, landing ring) and the
 // background, by sampling the rendered pixels at their projected positions.
 // Usage: node test/contrast-check.mjs https://localhost:4173/ [shotsDir]
-// The bloom opening (seed floating in front of the eyes, bobbing, while the
-// laptop camera is still auto-framing) is measured with checkSettled():
+// Both openings (seed waiting in front of the eyes above its hint, while the
+// laptop camera may still be auto-framing) are measured with checkSettled():
 // camera settled first, then the seed sampled along the path it actually took
 // on screen during each of several screenshots, every one of which must pass.
 import { chromium } from 'playwright';
@@ -152,9 +152,22 @@ async function checkSettled(mode, query, file, ready, frames = 3) {
     if (bg > 0.05) { console.log(`  FAIL frame ${f + 1}: background is not dark (${bg.toFixed(3)})`); failures++; }
     // panels that must not fall inside a sampling box
     const panels = Object.entries(rec[rec.length - 1]).filter(([n]) => n.endsWith('Box')).map(([n, c]) => {
-      const xs = c.map(([x]) => x * W), ys = c.map(([, y]) => y * H);
-      return { n, x0: Math.min(...xs), x1: Math.max(...xs), y0: Math.min(...ys), y1: Math.max(...ys) };
+      const pts = c.map(([x, y]) => [x * W, y * H]);
+      const xs = pts.map(([x]) => x), ys = pts.map(([, y]) => y);
+      return { n, pts, x0: Math.min(...xs), x1: Math.max(...xs), y0: Math.min(...ys), y1: Math.max(...ys) };
     });
+    // A panel can be tilted on screen (the catch hint is), so its bounding
+    // box's top can sit well above its real edge: find where the column x
+    // first meets the panel's outline.
+    const topAt = (p, x) => {
+      let top = Infinity;
+      for (let k = 0; k < p.pts.length; k++) {
+        const [ax, ay] = p.pts[k], [bx, by] = p.pts[(k + 1) % p.pts.length];
+        if ((x < Math.min(ax, bx)) || (x > Math.max(ax, bx)) || ax === bx) continue;
+        top = Math.min(top, ay + (by - ay) * (x - ax) / (bx - ax));
+      }
+      return top;
+    };
     const names = new Set(rec.flatMap((r) => Object.keys(r)).filter((n) => !n.endsWith('Box')));
     for (const name of names) {
       const count = Math.max(...rec.map((r) => r[name]?.length ?? 0));
@@ -162,7 +175,8 @@ async function checkSettled(mode, query, file, ready, frames = 3) {
         const xs = [], ys = [];
         for (const r of rec) if (r[name]?.[i]) { xs.push(r[name][i][0] * W); ys.push(r[name][i][1] * H); }
         const box = { x0: Math.floor(Math.min(...xs)), x1: Math.ceil(Math.max(...xs)), y0: Math.floor(Math.min(...ys)), y1: Math.ceil(Math.max(...ys)) };
-        const hit = panels.find((p) => box.x1 + 3 >= p.x0 && box.x0 - 3 <= p.x1 && box.y1 + 3 >= p.y0 && box.y0 - 3 <= p.y1);
+        // the HUD sample point is the HUD panel itself: never compare a panel with its own outline
+        const hit = panels.find((p) => p.n !== `${name}Box` && box.x1 + 3 >= p.x0 && box.x0 - 3 <= p.x1 && box.y1 + 3 >= p.y0 && box.y0 - 3 <= p.y1);
         const r = ratio(s.peakBox(box.x0, box.y0, box.x1, box.y1), bg);
         const label = `${name}${count > 1 ? ` #${i}` : ''}`;
         // A panel just below the object (the hint under the waiting seed): in
@@ -172,14 +186,14 @@ async function checkSettled(mode, query, file, ready, frames = 3) {
         let gap = '';
         let gapOk = true;
         const cx = Math.round((box.x0 + box.x1) / 2);
-        const below = panels.filter((p) => cx >= p.x0 && cx <= p.x1 && p.y0 > box.y1).sort((a, b) => a.y0 - b.y0)[0];
+        const below = panels.map((p) => ({ ...p, top: topAt(p, cx) })).filter((p) => p.top < Infinity && p.top > box.y1).sort((a, b) => a.top - b.top)[0];
         if (below && !hit) {
           // walk down from the object's centre: past the object's own pixels,
           // then count background rows up to the first panel pixel. The
           // object and the panel may both have moved during the capture, so
           // look as far as the panel's top plus the object's whole path.
           const dark = (y) => s.at(cx, y) <= bg + 0.005;
-          const end = Math.min(H - 1, Math.ceil(below.y0) + (box.y1 - box.y0) + 10);
+          const end = Math.min(H - 1, Math.ceil(below.top) + (box.y1 - box.y0) + 10);
           let y = Math.round((box.y0 + box.y1) / 2);
           while (y <= end && !dark(y)) y++; // the object itself
           let best = 0;
@@ -202,8 +216,8 @@ async function checkSettled(mode, query, file, ready, frames = 3) {
 await checkSettled('bloom / opening (hand lowered)', '?emulate=1', 'vis-bloom-opening.png', () => window.__palmful?.phase === 'await');
 // 2. bloom after Space: hand + Mote + trail
 await check('bloom / playing', '?emulate=1', [' '], 800, 'vis-bloom-playing.png', () => window.__palmful?.phase === 'play');
-// 3. catch opening
-await check('catch / opening (hand lowered)', '?emulate=1&catch=1', [], 800, 'vis-catch-opening.png', () => window.__palmful?.catch?.seed === 'waiting');
+// 3. catch opening: seed waiting above the tilted hint, HUD above
+await checkSettled('catch / opening (hand lowered)', '?emulate=1&catch=1', 'vis-catch-opening.png', () => window.__palmful?.catch?.seed === 'waiting');
 // 4. catch falling: seed + ring + hand
 await check('catch / seed falling', '?emulate=1&catch=1', [' '], 400, 'vis-catch-falling.png', () => window.__palmful?.catch?.seed === 'falling');
 await browser.close();
