@@ -93,9 +93,20 @@ least 10** attempts; with fewer, Catch is **inconclusive — retest**.
 | Bloom: Mote while moving (video) | stays on the skin | brief slips on fast moves only | floats, lags or swims on slow tilts |
 | Catch: unintended catches | 0 | — | any |
 | Catch: attempts that end in a catch (≥ 10 attempts) | ≥ 80 % | 60–79 % | < 60 % |
-| Catch: cup values | flat and relaxed < 0.30, gentle cup > 0.50 | relaxed 0.30–0.42 | relaxed ≥ 0.42, or gentle cup < 0.42 |
+| Catch: cup values | all three readings pass | worst reading inconclusive | any reading fails |
 | Catch: hand hidden mid-fall | seed pauses, then can still be caught | — | seed is lost or counted as a miss |
 | Catch: after 3/3 | holding the cup never restarts | — | restarts without open hand → fist |
+
+**Cup calibration readings.** The game catches when the `cup` number reaches
+0.42. An open hand (flat or relaxed) must stay clearly below that, and a gentle
+cup clearly above it. Each reading falls in exactly one column; the cup row
+above takes the worst of the three.
+
+| Reading | Pass | Inconclusive — retest | Fail |
+|---|---|---|---|
+| Flat | below 0.30 | 0.30 or more, below 0.42 | 0.42 or more (an open hand would catch) |
+| Relaxed | below 0.30 | 0.30 or more, below 0.42 | 0.42 or more (a resting hand would catch) |
+| Gently cupped | above 0.50 | 0.42 to 0.50 | below 0.42 (a cup would not register) |
 
 How each mode is rated:
 
