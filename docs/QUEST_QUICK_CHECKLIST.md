@@ -1,7 +1,7 @@
 # Palmful: Quest 3 / 3S quick checklist
 
-About **13 minutes** (3 setup, 3 Bloom, 6 Catch, 1 to send results), plus 2
-optional minutes for two-hand play.
+About **13 minutes** (3 setup, 3 Bloom, 6 Catch including a 10 s opening
+check, 1 to send results), plus 2 optional minutes for two-hand play.
 
 This is a short version of [`QUEST_TEST_GUIDE.md`](QUEST_TEST_GUIDE.md).
 **If the two documents ever differ, the detailed guide is the source of truth.**
@@ -38,6 +38,14 @@ Open **https://iftiikhaarr-glitch.github.io/palmful/?debug=1** and pinch
 Open **https://iftiikhaarr-glitch.github.io/palmful/?catch=1&debug=1** and
 pinch **Enter AR**.
 
+- [ ] **Opening check (10 s), before raising your hand.** Stay seated and
+      rest both hands comfortably out of the headset's view, for example
+      lowered at your sides (no need to hold them behind your back). A seed
+      waits in front of you, pulsing, with **"Hold out your hand"** just under it. Look normally at it, then tip your head
+      slightly downward. Say aloud: does its glow cover the "Hold out your
+      hand" text, or make either the seed or the instruction hard to see?
+      If it says "Turn your palm up" instead, the headset can see a hand:
+      lower your hands a little further out of view and look again.
 - [ ] **Cup calibration.** Read the `cup` number aloud for 5 s each with your
       hand flat, relaxed (naturally curled) and gently cupped.
 - [ ] **Play.** A seed glows, then drifts down. Move your open palm under it
@@ -76,6 +84,9 @@ other hand. This part never decides which mode to keep.
 4. One line each:
    - Bloom: did Mote look like it was sitting on your skin (yes, mostly or no)?
    - Catch: did moving and cupping feel natural? Any miss that felt unfair?
+   - Catch opening: did the pulsing seed's glow cover the "Hold out your hand"
+     text, or make the seed or the instruction hard to see (looking normally,
+     and looking slightly downward)?
    - Which one would you rather play again, and why?
    - Anything uncomfortable (arm, eyes, nausea)?
 
@@ -132,5 +143,9 @@ Some results point to a fix instead of a mode choice:
   and retest.
 - Low frame rate: simplify the scene.
 - Confusion in the first minute: fix the onboarding.
+- Catch opening glow covers the "Hold out your hand" text or makes the
+  opening confusing: record it as a usability issue. It needs a fix (hint
+  position or pulse) and a retest before the final mode choice. On its own it
+  is not a reason to drop Catch.
 
 Two-hand play stays optional whatever the result.
