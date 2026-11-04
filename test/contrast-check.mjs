@@ -190,7 +190,7 @@ async function checkSettled(mode, query, file, ready, frames = 3) {
         const ok = !hit && gapOk && r >= MIN_RATIO;
         if (!ok) failures++;
         console.log(`  ${ok ? 'OK  ' : 'FAIL'} frame ${f + 1} ${label.padEnd(6)} contrast ${r.toFixed(1)}:1  path ${box.x1 - box.x0}x${box.y1 - box.y0} px over ${rec.length} frames${hit ? `  overlaps ${hit.n}: cannot tell it apart` : gap}${gapOk ? '' : ' (needs 4)'}`);
-        worst[label] = Math.min(worst[label] ?? Infinity, hit ? 0 : r);
+        worst[label] = Math.min(worst[label] ?? Infinity, ok ? r : 0); // 0: that screenshot failed (overlap, no gap or low contrast)
       }
     }
   }
