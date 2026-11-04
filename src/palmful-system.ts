@@ -217,6 +217,11 @@ declare global {
       holdCue: (on: boolean) => string;
       /** laptop test aid: pause the game now (true) or resume (false); the hand still moves */
       freeze: (on: boolean) => string;
+      /** laptop inspection camera: pause the game while the camera orbits the hand (the hand is not moved) */
+      inspect: (on: boolean) => boolean;
+      inspecting: boolean;
+      /** laptop test aid: completion card lines and their drawn widths (canvas px) */
+      cardText?: { maxW: number; lines: string[]; widths: number[] };
       /** laptop view: is the hand silhouette drawn, and the bright bones? */
       silhouette: () => { silhouette: boolean; bones: boolean };
       /** laptop view: IWSDK's own hand visual per side (loaded from the input-profiles CDN; hidden in laptop mode) */
@@ -302,6 +307,8 @@ export class PalmfulSystem extends createSystem({}) {
   private flash: { color: string; t: number; x: number; y: number; z: number; grow: boolean } | null = null;
   /** laptop test aid: freeze the game at the next catch/miss cue (screenshots take ~3 s headless) */
   private cueHold: 'off' | 'armed' | 'frozen' = 'off';
+  /** laptop inspection camera: game paused (hand tracking and drawing continue) */
+  private inspecting = false;
   private ringY = 0;
 
   private st: CreatureState = makeCreature();
@@ -453,6 +460,12 @@ export class PalmfulSystem extends createSystem({}) {
         if (EMULATED_VIEW) this.cueHold = on ? 'frozen' : 'off';
         return this.cueHold;
       },
+      inspect: (on: boolean) => {
+        if (EMULATED_VIEW) this.inspecting = on;
+        window.__palmful!.inspecting = this.inspecting;
+        return this.inspecting;
+      },
+      inspecting: false,
       iwsdkHands: () =>
         Object.fromEntries(
           SIDES.map((side) => {
@@ -612,7 +625,7 @@ export class PalmfulSystem extends createSystem({}) {
 
     if (this.tracked && this.frame.normal.y > 0.5) this.metrics.palmUpFrames++;
     if (MODE === 'catch') {
-      const dt = this.cueHold === 'frozen' ? 0 : delta;
+      const dt = this.cueHold === 'frozen' || this.inspecting ? 0 : delta;
       this.updateCatch(dt, time);
       this.renderJointDots();
       this.renderBeaconAndFlowers(time, dt);
@@ -624,10 +637,13 @@ export class PalmfulSystem extends createSystem({}) {
       d.catch = this.cst;
       d.cup = this.cup;
       d.palmCenter = this.frame.center; // two-hand mode switches frames
+      this.hideCardsWhileInspecting();
       this.reportFit(delta);
       return;
     }
-    this.advancePhase(delta);
+    // laptop inspection camera: the bloom game holds still (dt 0); the hand is still tracked and drawn
+    const g = this.inspecting ? 0 : delta;
+    this.advancePhase(g);
     const playing = this.phase === 'play' || this.phase === 'done';
 
     if (this.tracked && !playing) {
@@ -636,12 +652,12 @@ export class PalmfulSystem extends createSystem({}) {
       const before = this.st.slideTime;
       // Session end: after three blooms, a closed fist (held briefly) restarts.
       if (this.phase === 'done' && fingertipReach(this.joints) < FIST_REACH) {
-        this.fistT += delta;
+        this.fistT += g;
         if (this.fistT > 0.8) this.restart();
       } else {
         this.fistT = 0;
       }
-      const res = stepCreature(this.st, this.frame, GRAVITY, delta);
+      const res = stepCreature(this.st, this.frame, GRAVITY, g);
       if (this.metrics.firstSlideS === null && this.st.slideTime > before)
         this.metrics.firstSlideS = this.metrics.sessionS;
       if (res.bloomed && res.bloomFinger) this.onBloom(res.bloomFinger);
@@ -654,13 +670,25 @@ export class PalmfulSystem extends createSystem({}) {
     this.renderJointDots();
     this.renderMote(time);
     this.renderSeed(time);
-    this.renderTrail(time, delta);
-    this.renderBeaconAndFlowers(time, delta);
-    this.renderHint(delta);
+    this.renderTrail(time, g);
+    this.renderBeaconAndFlowers(time, g);
+    this.renderHint(g);
     const dbg = window.__palmful!;
     dbg.tracked = this.tracked;
     dbg.phase = this.phase;
+    this.hideCardsWhileInspecting();
     this.reportFit(delta);
+  }
+
+  /**
+   * Laptop inspection camera: the floating cards are drawn over everything
+   * (no depth test), so they would cover the hand when the camera looks at it
+   * from the side or from below. Hidden while inspecting; back on reset.
+   */
+  private hideCardsWhileInspecting(): void {
+    if (!this.inspecting) return;
+    this.hint.visible = false;
+    if (this.hud) this.hud.visible = false; // the progress card exists in catch mode only
   }
 
   /**
@@ -1549,12 +1577,21 @@ export class PalmfulSystem extends createSystem({}) {
     c.textBaseline = 'middle';
     if (done) {
       c.fillStyle = '#fff4e0';
-      c.font = '700 78px system-ui, sans-serif';
-      c.fillText(this.fistT > 0 ? 'Hold it…' : '3/3  All three caught', cv.width / 2, 78);
+      const maxW = cv.width - 120; // stay inside the rounded panel whatever the system font
+      const title = this.fistT > 0 ? 'Hold it…' : '3/3  All three caught';
+      fitFont(c, title, maxW, '700', 78, 40);
+      c.fillText(title, cv.width / 2, 78);
       SEED_KINDS.forEach((k, i) => this.drawSeedIcon(c, k, cv.width / 2 + (i - 1) * 110, 165, 34, true, false));
       c.fillStyle = '#d8cbb8';
-      c.font = '50px system-ui, sans-serif';
-      c.fillText(this.restartArmed ? 'make a fist to play again' : 'open your hand, then make a fist to play again', cv.width / 2, 245);
+      const again = this.restartArmed ? 'make a fist to play again' : 'open your hand, then make a fist to play again';
+      fitFont(c, again, maxW, '400', 50, 28);
+      c.fillText(again, cv.width / 2, 245);
+      // laptop test aid: the line widths as drawn, to check they fit the card
+      if (EMULATED_VIEW) {
+        const againW = c.measureText(again).width;
+        fitFont(c, title, maxW, '700', 78, 40);
+        window.__palmful!.cardText = { maxW, lines: [title, again], widths: [c.measureText(title).width, againW] };
+      }
     } else {
       const w = cv.width / 3;
       SEED_KINDS.forEach((k, i) => {
@@ -1570,8 +1607,9 @@ export class PalmfulSystem extends createSystem({}) {
         }
         this.drawSeedIcon(c, k, cx, 105, 38, got, current);
         c.fillStyle = got ? '#fff4e0' : current ? '#f2e6d8' : '#9d93a6';
-        c.font = `${got || current ? 700 : 500} 56px system-ui, sans-serif`;
-        c.fillText(`${SEED_LABEL[k]} ${got ? 1 : 0}/1`, cx, 205);
+        const label = `${SEED_LABEL[k]} ${got ? 1 : 0}/1`;
+        fitFont(c, label, w - 60, got || current ? '700' : '500', 56, 32);
+        c.fillText(label, cx, 205);
       });
     }
     this.hudTex.needsUpdate = true;
@@ -1829,11 +1867,7 @@ export class PalmfulSystem extends createSystem({}) {
     c.fill();
     c.textAlign = 'center';
     c.fillStyle = '#fff4e0';
-    let size = 72;
-    do {
-      c.font = `600 ${size}px system-ui, sans-serif`;
-      size -= 4;
-    } while (size > 28 && c.measureText(title).width > cv.width - 96);
+    fitFont(c, title, cv.width - 96, '600', 72, 28);
     const done = this.phase === 'done';
     c.fillText(title, cv.width / 2, sub || done ? 92 : 112);
     if (done) {
@@ -1847,7 +1881,7 @@ export class PalmfulSystem extends createSystem({}) {
     }
     if (sub) {
       c.fillStyle = '#d8cbb8';
-      c.font = '54px system-ui, sans-serif';
+      fitFont(c, sub, cv.width - 96, '400', 54, 28);
       c.fillText(sub, cv.width / 2, done ? 206 : 160);
     }
     if (DEBUG) {
@@ -1856,5 +1890,17 @@ export class PalmfulSystem extends createSystem({}) {
       dbg.split('\n').forEach((line, i) => c.fillText(line, cv.width / 2, 270 + i * 52));
     }
     this.hintTex.needsUpdate = true;
+  }
+}
+
+/**
+ * Set the largest font (from `size` down to `min`) at which `text` fits in
+ * `maxW` canvas pixels. Canvas text is drawn in the viewer's system font, so a
+ * fixed size that fits on Linux can overflow its panel on Windows or macOS.
+ */
+function fitFont(c: CanvasRenderingContext2D, text: string, maxW: number, weight: string, size: number, min: number): void {
+  for (let s = size; ; s -= 2) {
+    c.font = `${weight} ${s}px system-ui, sans-serif`;
+    if (s <= min || c.measureText(text).width <= maxW) return;
   }
 }

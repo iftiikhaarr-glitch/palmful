@@ -46,7 +46,7 @@ const FINGERS: Array<{ chain: number[]; r: number[] }> = [
   { chain: [1, 14, 15, 16], r: [0.0077, 0.0068, 0.0062, 0.0057] },
 ];
 /** Thumb: metacarpal (thumb base, near the wrist), proximal, distal, tip. */
-const THUMB = { chain: [17, 18, 19, 20], r: [0.0145, 0.0112, 0.0094, 0.0084] };
+const THUMB = { chain: [17, 18, 19, 20], r: [0.0132, 0.0104, 0.0089, 0.008] };
 
 export const SKIN_COLOR = '#b9a6a8'; // muted warm grey-rose: reads on the dark room, lets seeds pop
 const SHADOW_COLOR = '#3f3446';

@@ -25,6 +25,9 @@ Two versions. Both run in Chrome or Edge with an emulated hand. Click
 | ← / → | roll toward the pinky / index side |
 | F | toggle a fist (after three blooms, a fist replays) |
 | H | lower / raise the hand (simulates tracking loss) |
+| [ / ] | inspect: orbit the camera around the hand, 5° per press (90° = side, 180° = its back) |
+| - / = | inspect: turn the camera around the hand, 5° per press |
+| R | put the camera back (the game is paused while you inspect) |
 
 One full session: Space → the seed lands and hatches; when Mote sits still a
 golden trail shows the way. ↑ ×7 → middle fingertip blooms. Space, ↓ ×6 →
@@ -50,6 +53,9 @@ pink centre).
 | F | toggle a fist (after 3/3, a fist restarts and resets every count) |
 | H | lower / raise the hand (simulates tracking loss; status shows HAND HIDDEN) |
 | ? | hide / show the help panel |
+| [ / ] | inspect: orbit the camera around the hand, 5° per press (90° = side, 180° = its back) |
+| - / = | inspect: turn the camera around the hand, 5° per press |
+| R | put the camera back (the game is paused while you inspect) |
 
 Use the **Hand display: Small / Medium / Large** buttons in the panel to change
 how thick the emulated hand is drawn. The choice is saved in this browser. It
@@ -81,7 +87,9 @@ the emulated joints, so it is exactly where the game thinks your hand is. Open,
 cup and fist blend into each other over about 0.2 s. Joint dots are hidden; add
 `&debug=1` for the metrics panel and the full bright skeleton (joints and bones)
 seen through a faint hand. The landing ring, a seed and the flowers stay faintly
-visible where the hand covers them.
+visible where the hand covers them. To look at the hand from any side, use the
+inspection keys (**[ ]**, **- =**, **R**): only the camera moves, the game is
+paused, and C and F still change the pose so each one can be checked.
 The camera tilts and zooms on its own to keep the progress display, seeds,
 ring and hand inside the window at any window size. In smaller windows the
 help panel starts collapsed (**Show help** or **?**). All of this exists only

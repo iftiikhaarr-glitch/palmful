@@ -1,7 +1,8 @@
 // Laptop emulator: screenshots of the hand model in each pose (open, receive,
-// cup with a seed resting in it, fist), from the default front view and an
-// angled view, plus a few checks that the hand reads as a solid hand and
-// stays aligned with the game's palm centre. PRODUCTION build.
+// cup with a seed resting in it, fist), front, side and back, taken with the
+// laptop inspection camera keys, plus checks that the hand reads as a solid
+// hand, stays aligned with the game's palm centre, and that inspecting
+// pauses the game without moving the hand. PRODUCTION build.
 //   open    - palm up, flat, before the seed reaches it
 //   receive - palm under the falling seed (ring green), seed just above
 //   cup     - the seed resting in the palm, hand cupped (game paused with
@@ -10,6 +11,8 @@
 //   fist    - after the catch, a closed fist with the flower
 // Usage: node test/hand-poses.mjs https://localhost:4173/ [shotsDir] [WxH] [extraQuery]
 //        HAND_SIZE=S|M|L picks the laptop hand display size first.
+//        HEADED=1 opens a normal (non-headless) browser window, e.g. under
+//        xvfb-run on a machine without a display.
 import { chromium } from 'playwright';
 import { PNG } from 'pngjs';
 import fs from 'node:fs';
@@ -27,7 +30,7 @@ const check = (desc, ok, detail = '') => {
 };
 
 // ignoreDefaultArgs: show classic scrollbars, as desktop browsers do (headless hides them)
-const browser = await chromium.launch({ ignoreDefaultArgs: ['--hide-scrollbars'], args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader'] });
+const browser = await chromium.launch({ headless: !process.env.HEADED, ignoreDefaultArgs: ['--hide-scrollbars'], args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', `--window-size=${W},${H + 87}`] });
 const page = await browser.newPage({ ignoreHTTPSErrors: true, viewport: { width: W, height: H } });
 // IWSDK draws its own hand (outline + an invisible depth "occluder") from the
 // WebXR input-profiles CDN. Sandboxed CI often cannot reach that CDN, so the
@@ -99,27 +102,41 @@ async function handPixels(file) {
   return { box: [x0, y0, x1, y1].map((v) => +v.toFixed(3)), litFrac: +(lit / n).toFixed(2), darkFrac: +(dark / n).toFixed(2), mean: +(sum / n).toFixed(0) };
 }
 
-async function angled(name) {
-  const s = await state();
-  await page.evaluate(async (p) => {
-    window.__palmfulFitPaused = true;
-    const emu = window.__palmfulEmu;
-    await emu.dispatch('set_transform', { device: 'headset', position: { x: p.x + 0.26, y: p.y + 0.2, z: p.z + 0.2 } });
-    await emu.dispatch('look_at', { device: 'headset', target: { x: p.x, y: p.y + 0.02, z: p.z } });
-  }, s.palm);
-  await page.waitForTimeout(700);
-  await page.screenshot({ path: `${shots}/hand-${name}-angled.png` });
-  await page.evaluate(async () => {
-    const emu = window.__palmfulEmu;
-    await emu.dispatch('set_transform', { device: 'headset', position: { x: 0.04, y: 1.42, z: -0.05 } });
-    await emu.dispatch('look_at', { device: 'headset', target: { x: 0.04, y: 1.27, z: -0.4 } });
-    window.__palmfulFitPaused = false;
-  });
-  await page.waitForTimeout(1200);
+/**
+ * Side and back views through the laptop inspection camera (keys, as a person
+ * would): = x18 turns the camera 90° around the hand (side), [ ] orbit around
+ * the hand's length, 180° looks at its back. Checks that inspecting pauses the
+ * game, never moves the hand, and that R puts the camera back.
+ */
+async function inspectViews(name) {
+  const head0 = await page.evaluate(() => window.__palmfulEmu.dispatch('get_transform', { device: 'headset' }));
+  const s0 = await state();
+  await press('=', 18);
+  await page.waitForTimeout(500);
+  await page.screenshot({ path: `${shots}/hand-${name}-side.png` });
+  await press('-', 18);
+  await press(']', 36);
+  await page.waitForTimeout(500);
+  await page.screenshot({ path: `${shots}/hand-${name}-back.png` });
+  const s1 = await state();
+  const insp = await page.evaluate(() => ({ on: window.__palmful.inspecting, status: document.querySelector('#laptop-status').textContent }));
+  const moved = Math.hypot(s1.palm.x - s0.palm.x, s1.palm.y - s0.palm.y, s1.palm.z - s0.palm.z);
+  const seedMoved = s0.seed && s1.seed ? Math.hypot(s1.seed.x - s0.seed.x, s1.seed.y - s0.seed.y, s1.seed.z - s0.seed.z) : 0;
+  check(`${name}: inspecting pauses the game and leaves the hand where it is`, insp.on && /INSPECT\s+around 180°/.test(insp.status) && moved < 1e-4 && seedMoved < 1e-4 && s1.seed?.state === s0.seed?.state,
+    `palm moved ${(moved * 1000).toFixed(2)} mm, seed moved ${(seedMoved * 1000).toFixed(2)} mm, ${insp.status}`);
+  await press('R');
+  await page.waitForTimeout(600);
+  const head1 = await page.evaluate(() => window.__palmfulEmu.dispatch('get_transform', { device: 'headset' }));
+  const back = Math.hypot(head1.position.x - head0.position.x, head1.position.y - head0.position.y, head1.position.z - head0.position.z);
+  const on = await page.evaluate(() => window.__palmful.inspecting);
+  check(`${name}: R puts the camera back and resumes`, back < 1e-3 && !on, `camera ${(back * 1000).toFixed(1)} mm from where it was`);
 }
 async function front(name) {
   const f = `${shots}/hand-${name}-front.png`;
-  await page.waitForTimeout(100);
+  // enter the inspection camera at 0° (] then [): the game pauses, the view is unchanged
+  await press(']');
+  await press('[');
+  await page.waitForTimeout(400);
   await page.screenshot({ path: f });
   const px = await handPixels(f);
   log('     ', name, 'hand pixels', JSON.stringify(px));
@@ -149,7 +166,7 @@ try {
   const open = await front('open');
   check('open: hand model drawn (silhouette on, bones hidden)', (await page.evaluate(() => window.__palmful.silhouette())).silhouette);
   if (!extra.includes('debug')) check('open: palm reads as a lit surface, not a hollow dark shape', open && open.litFrac > 0.3, JSON.stringify(open));
-  await angled('open');
+  await inspectViews('open');
   await page.evaluate(() => window.__palmful.freeze(false));
 
   // RECEIVE: under the falling seed, seed a few cm above the palm
@@ -162,7 +179,7 @@ try {
   log('     ', 'receive: seed above palm', `${((sr.seed.y - sr.palm.y) * 100).toFixed(1)} cm`, sr.seed.state);
   check('receive: seed still falling, above the palm', sr.seed.state === 'falling' && sr.seed.y > sr.palm.y);
   await front('receive');
-  await angled('receive');
+  await inspectViews('receive');
   await page.evaluate(() => window.__palmful.freeze(false));
   await moveUnderSeed();
 
@@ -177,7 +194,7 @@ try {
   const d = Math.hypot(sc.seed.x - sc.palm.x, sc.seed.z - sc.palm.z);
   check('cup: seed sits over the palm centre the game uses (< 1.5 cm)', d < 0.015, `${(d * 100).toFixed(1)} cm`);
   await front('cup');
-  await angled('cup');
+  await inspectViews('cup');
   await page.evaluate(() => window.__palmful.freeze(false));
   await waitFor('cup catches it', (s) => s.seed.catches === 1, 15);
 
@@ -185,7 +202,7 @@ try {
   await press('F');
   await page.waitForTimeout(900);
   await front('fist');
-  await angled('fist');
+  await inspectViews('fist');
   await press('F');
   await page.waitForTimeout(600);
   if (process.env.PROFILES_DIR) {
