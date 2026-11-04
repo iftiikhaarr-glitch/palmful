@@ -1217,6 +1217,12 @@ export class PalmfulSystem extends createSystem({}) {
   private fitT = 0;
   private reportFit(dt: number): void {
     if (!EMULATED_VIEW) return;
+    // Bloom opening: the waiting seed and its hint follow the head, so tilting
+    // toward them can never centre them; the camera used to run down to its
+    // -70° limit, where the hint's top edge covered the seed (issue #7). The
+    // laptop camera keeps its starting view until the hand rises; framing then
+    // resumes from there in the usual small, damped steps.
+    if (MODE === 'bloom' && this.phase === 'await') return;
     this.fitT -= dt;
     if (this.fitT > 0) return;
     this.fitT = 0.25;
