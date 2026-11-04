@@ -58,6 +58,10 @@ that hides virtual objects behind your fingers. Note whether the outline sits
 on your real hand or visibly off it; that affects how "in your palm" the seed
 and Mote look.
 
+(The shaded 3D hand, see-through cues and automatic zoom seen in the laptop
+emulator do not exist on the headset. There you see your real hand. The laptop
+hand cannot tell you whether the seed lines up with a real palm.)
+
 **Catch area.** The ring is the catch area. Its radius is 0.9 × your measured
 palm width (index-to-pinky knuckle), between 5.5 and 9.5 cm. It is sized from
 your real hand, so it lines up with your palm. Nothing in the headset enlarges or
