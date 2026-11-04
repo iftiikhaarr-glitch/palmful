@@ -62,15 +62,17 @@ async function check(mode, query, keys, settleMs, file, ready = () => true) {
   console.log(`${mode}: background luminance ${bg.toFixed(3)} (0 = black, 1 = white)${hiddenText ? `; status "${hiddenText}"` : ''}`);
   if (bg > 0.05) { console.log('  FAIL background is not dark'); failures++; }
   for (const [name, list] of Object.entries(pts)) {
+    if (name.endsWith('Box')) continue; // panel corners: for clipping checks, not contrast
     const later = after[name] ?? list;
     const ratios = list.map(([x, y], i) => {
       const [x2, y2] = later[i] ?? [x, y];
       return ratio(s.peakBox(Math.round(x * W), Math.round(y * H), Math.round(x2 * W), Math.round(y2 * H)), bg);
     });
     const worst = Math.min(...ratios);
+    const wi = ratios.indexOf(worst);
     const ok = worst >= MIN_RATIO;
     if (!ok) failures++;
-    console.log(`  ${ok ? 'OK  ' : 'FAIL'} ${name.padEnd(6)} n=${String(list.length).padStart(2)}  worst contrast ${worst.toFixed(1)}:1  median ${ratios.sort((a, b) => a - b)[Math.floor(ratios.length / 2)].toFixed(1)}:1`);
+    console.log(`  ${ok ? 'OK  ' : 'FAIL'} ${name.padEnd(6)} n=${String(list.length).padStart(2)}  worst contrast ${worst.toFixed(1)}:1  median ${ratios.sort((a, b) => a - b)[Math.floor(ratios.length / 2)].toFixed(1)}:1${list.length > 1 ? `  (worst: #${wi})` : ''}`);
   }
   await page.close();
   return pts;

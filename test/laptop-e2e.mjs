@@ -80,6 +80,27 @@ try {
   await keys('F');
   await waitFor('back to play after re-hatch', (s) => s.phase === 'play', 60);
   await page.screenshot({ path: `${shots}/laptop-5-restarted.png` });
+
+  // Inspection camera: the game pauses, the hand keys are ignored, frames keep
+  // running, and R resumes. (Bloom mode has no progress card; this once threw.)
+  await keys(']');
+  const i0 = await state();
+  await keys('ArrowUp', 7); // ignored while inspecting: Mote must not slide
+  await keys(']', 35);
+  await page.waitForTimeout(2000);
+  await page.screenshot({ path: `${shots}/laptop-6-inspect-back.png` });
+  const i1 = await state();
+  const inspecting = await page.evaluate(() => window.__palmful.inspecting);
+  const still = i1.place === i0.place && Math.abs(i1.a - i0.a) < 1e-6 && Math.abs(i1.b - i0.b) < 1e-6 && i1.blooms === i0.blooms;
+  if (!inspecting || !still || i1.m.frames <= i0.m.frames + 30) throw new Error('inspection: game not paused or frames stopped ' + JSON.stringify({ inspecting, i0: [i0.place, i0.a, i0.b, i0.m.frames], i1: [i1.place, i1.a, i1.b, i1.m.frames] }));
+  log('OK  ', 'inspection pauses the game, frames keep running', `frames +${i1.m.frames - i0.m.frames}`);
+  await keys('R');
+  await page.waitForTimeout(800);
+  const i2 = await state();
+  if (await page.evaluate(() => window.__palmful.inspecting) || i2.m.sessionS <= i1.m.sessionS) throw new Error('inspection: R did not resume');
+  log('OK  ', 'R ends inspection and the game runs on');
+  const thrown = errors.filter((e) => /TypeError|ReferenceError|RangeError/.test(e));
+  if (thrown.length) throw new Error('script errors: ' + thrown.slice(0, 3).join(' | '));
   ok = true;
 } catch (e) {
   log(String(e));
