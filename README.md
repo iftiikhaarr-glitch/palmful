@@ -105,6 +105,10 @@ tracking, cup detection on real hands, comfort, or Quest frame rate.**
 Follow [`docs/QUEST_TEST_GUIDE.md`](docs/QUEST_TEST_GUIDE.md): both versions, 3 minutes
 each, what to send back, pass/fail criteria, and which version to keep.
 
+For a tester, the one-page [`docs/QUEST_QUICK_CHECKLIST.md`](docs/QUEST_QUICK_CHECKLIST.md)
+covers Bloom and one-hand catch in about 13 minutes. The detailed guide is the
+source of truth if the two differ.
+
 ## Develop
 
 Requires Node 20.19+ or 22.12+.
