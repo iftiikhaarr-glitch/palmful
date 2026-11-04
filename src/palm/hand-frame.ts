@@ -28,6 +28,10 @@ export interface HandJoints {
   pinkyProx: Vec3;
   /** proximal, intermediate, distal, tip for each finger */
   finger: Record<FingerName, [Vec3, Vec3, Vec3, Vec3]>;
+  /** Drawing only (laptop hand silhouette): pinky intermediate, distal, tip. */
+  pinky: [Vec3, Vec3, Vec3];
+  /** Drawing only: thumb metacarpal, proximal, distal, tip. */
+  thumb: [Vec3, Vec3, Vec3, Vec3];
 }
 
 export const makeHandJoints = (): HandJoints => ({
@@ -38,7 +42,15 @@ export const makeHandJoints = (): HandJoints => ({
     middle: [v3(), v3(), v3(), v3()],
     ring: [v3(), v3(), v3(), v3()],
   },
+  pinky: [v3(), v3(), v3()],
+  thumb: [v3(), v3(), v3(), v3()],
 });
+
+/** Extra WebXR joints used only to draw the laptop hand silhouette. */
+export const DRAW_JOINT_NAMES = {
+  pinky: ['pinky-finger-phalanx-intermediate', 'pinky-finger-phalanx-distal', 'pinky-finger-tip'],
+  thumb: ['thumb-metacarpal', 'thumb-phalanx-proximal', 'thumb-phalanx-distal', 'thumb-tip'],
+} as const;
 
 /** WebXR joint names, per field, so the system can fill HandJoints. */
 export const JOINT_NAMES = {

@@ -102,9 +102,13 @@ try {
   await page.screenshot({ path: `${shots}/two-2-progress.png` });
 
   // Pink (centre): engaged right hand lost mid-fall -> seed pauses (left ready)
-  await waitFor('pink falling', (s) => s.seed.kind === 'pink' && s.seed.state === 'falling', 30);
+  // Position the right hand while pink still glows in place, and 6 cm lower,
+  // so there is time to lose the hand mid-fall (avoids a timing race).
+  await waitFor('pink waiting', (s) => s.seed.kind === 'pink' && s.seed.state === 'waiting', 30);
+  await control('right');
+  await press('S', 3);
   await moveUnderSeed('right');
-  const before = await waitFor('pink above the right palm, right engaged', (s) => s.two.engaged === 'right' && s.seed.state === 'falling', 10);
+  const before = await waitFor('pink falling above the right palm, right engaged', (s) => s.two.engaged === 'right' && s.seed.state === 'falling', 15);
   await press('H');
   await page.waitForTimeout(2000);
   const paused = await state();
@@ -120,6 +124,15 @@ try {
   const layout = await page.evaluate(() => window.__palmful.layout());
   check('completion card clear of the hand and flowers', layout.panelVisible && layout.overlaps === 0, JSON.stringify(layout));
   await page.screenshot({ path: `${shots}/two-3-complete.png` });
+  // Replay needs an open hand first, then a fist (either hand)
+  await press('F'); // right: cupped -> fist without opening
+  await page.waitForTimeout(2500);
+  check('two hands: a fist straight from the catching cup does not restart, even though the left hand is open',
+    (await state()).phase === 'done');
+  await press('F'); // right opens (arms the right hand)
+  await page.waitForTimeout(500);
+  await press('F'); // right fist
+  await waitFor('two hands: open then fist restarts; counts and engagement reset', (s) => s.phase === 'play' && s.seed.catches === 0 && Object.keys(s.two.flowers).length === 0, 20);
   check('no page errors', errors.length === 0, errors.join(' | '));
   ok = true;
 } catch (e) {

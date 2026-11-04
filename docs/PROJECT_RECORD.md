@@ -35,7 +35,7 @@ Keep this file current; it is how work continues across sessions.
 
 **Cut (excluded features):** multiplayer, AI, accounts, procedural ecosystem, creatures leaving the hand, voice.
 
-## What works now (2 Nov 2026, late)
+## What worked on 2 Nov 2026 (historical; see the sections below for current state)
 
 - Repo: https://github.com/iftiikhaarr-glitch/palmful · Live: https://iftiikhaarr-glitch.github.io/palmful/ (laptop: `?emulate=1`).
 - CI on every push: clean install, typecheck, 11 unit tests, production build, a full laptop-mode session in headless Chromium, a no-WebXR landing check, then deploy.
@@ -48,7 +48,7 @@ Keep this file current; it is how work continues across sessions.
 - **2D landing page:** an "Enter AR" button (fallback for browsers without `offerSession`), or, without WebXR AR, a note to open on Quest plus a link to the laptop demo.
 - Tracking loss, pause, debug metrics and laptop mode are unchanged from before.
 
-## Catch-mode experiment (3 Nov 2026), `?catch=1`
+## Catch-mode experiment v1 (3 Nov 2026), superseded by catch v2 below
 
 **The game:** a glowing seed waits in front of you. When you offer an open, palm-up hand, it pulses for 1 s, then drifts down at 6 cm/s. A ring at palm height, the size of the catch area, shows where it will land, and turns green when your palm is in place. The seed lands in an open, palm-up hand whose centre is within 7.5 cm horizontally. A gentle cup (`cupAmount` ≥ 0.42) held for 0.2 s then catches it, and a flower grows (middle, index, ring). A miss gives a red burst and a low sound, and the seed comes back from the other side with progress kept. Hand loss pauses the seed. Tipping the palm past about 72° spills a resting seed. Three catches complete the session; a fist replays.
 
@@ -96,14 +96,62 @@ Keep this file current; it is how work continues across sessions.
 - **Tests:** 7 unit tests; breaking any one of four rules made a test fail. The two-hand session test runs 17 checks.
 - Gated behind `&hands=2` and in its own pull request, so it can be dropped without touching one-hand play.
 
-## Not verified (needs a headset): see `docs/DEVICE_TEST.md`
+## Review of PR #2 for Quest readiness (3 Nov 2026, branch `review-fixes`)
+
+- **Baseline on PR #2 (`33d9f42`):** clean install, typecheck, 36 unit tests and the build all pass. Browser checks: bloom 15, catch 38, two-hand 17, landing 3, contrast 10, all passing.
+- **Fixed:**
+  1. **Accidental replay after 3/3.** In the synthetic hand, a firm catching cup (50° per joint) sits 1 mm from the fist threshold (fingertip reach 0.121 m vs 0.12 m), so holding a squeeze could wipe the result. The replay now arms only after *that hand* opens. In two-hand mode an open other hand does not arm it; the first version of this fix allowed that, and the two-hand browser test caught it.
+  2. **Per-frame allocation in two-hand mode.** `chooseHand` and its inputs no longer allocate every frame, which matters for frame rate on the headset. Behaviour is unchanged: the same 7 tests pass and the same 4 deliberate breaks fail.
+  3. **Debug `palmCenter`** now follows the active hand in two-hand mode.
+  4. **Docs:** stale pointers (README and record pointed to `DEVICE_TEST.md`), superseded catch-v1 facts marked, the laptop replay instructions corrected, and the Quest guide given an accidental-replay check and the hand-outline check.
+
+## Laptop hand readability (3 Nov 2026, branch `hand-silhouette`, on top of `review-fixes`)
+
+- **Laptop only (`?emulate`):**
+  - A soft translucent hand silhouette: palm polygon plus finger and thumb capsules, `src/hand-silhouette.ts`. It is drawn as a depth pre-pass followed by one colour pass, so overlaps don't brighten.
+  - Joints are small, faint dots; bones are hidden. `&debug=1` or `?skeleton=1` shows the full bright skeleton.
+  - Small/Medium/Large now scales the silhouette's thickness too. Positions are unchanged.
+  - Panels render above the silhouette.
+  - Pinky and thumb joints are read only in laptop mode, for drawing. The headset reads the same joints as before.
+- **No clipping:** the game reports the screen box of its key objects (progress display, hint, seed, ring, hand, flowers) about 4 times a second. The laptop camera tilts to centre it and zooms just enough to keep it inside the window. The help panel never exceeds the window height and starts collapsed below 720 px tall or 900 px wide.
+- **Checked:** `test/layout-sizes.mjs` covers 5 window sizes (1920×1080, 1366×768, 1024×640, 820×1100, 700×560) × both modes × opening, a catch or bloom, and completion.
+- **Cost:** the silhouette is one mesh rebuilt each frame (2 draw calls per hand). Headless swiftshader went from about 9.6 to 13.3 fps after merging the parts. This is not a Quest number.
+- **Test aid:** `__palmful.holdCue(true)` (laptop only) freezes the game at the next catch/miss cue so the ~3 s headless screenshot can see the 1.5 s cue. Players never trigger it.
+- **Quest:** unchanged. The real hand and IWSDK's outline are what a player sees; alignment and readability there still need the headset.
+
+## Laptop 3D hand (3 Nov 2026, on top of `hand-silhouette`)
+
+- **Laptop only (`?emulate`); the Quest path is untouched** (the hand model, see-through cue copies and pose blending are all behind `?emulate`).
+- `src/hand-silhouette.ts` now builds a procedural 3D hand from the same filtered joints the game uses, every frame. No new asset, no new dependency, no licence question: it is code in this repo.
+  - Each finger and the thumb is one smooth tapered tube (Catmull-Rom through its joints) with a rounded tip; the palm is a closed, rounded pillow from wrist to knuckles with a shallow hollow on the palm side; the wrist is an oval tube that narrows and fades out over 5 cm.
+  - Finger and thumb roots are capped and start inside the palm, so no seams or dark holes. The palm's skin sits about 1 cm out from the joints, where the game rests the seed (`center + normal × 0.8 cm`), so a resting seed sits on the visible palm.
+  - Shading: soft view-relative key light, a muted warm grey-rose skin (#b9a6a8) that reads on the dark room without outshining seeds, and a restrained cool edge light. No glow, no texture.
+  - One opaque mesh, one draw call per hand, ordinary depth test. About 1.4k vertices; normals are computed in place without per-frame allocation.
+- **Real-browser defect found in review (fixed):** in a real desktop browser the palm was black, the fingertips looked detached and the wrist floated as a separate cuff. Cause: IWSDK draws its own hand visual over every tracked hand, a white outline plus an invisible depth-writing "occluder" hand (meant for passthrough). It loads from the WebXR input-profiles CDN, which the sandboxed test runs could not reach, so headless screenshots never showed it. In real browsers the occluder hid the laptop hand wherever it sat behind it. This was also the cause of the black palm in the PR #4 silhouette.
+  - Fix (laptop only): the system hides IWSDK's hand visual every frame in `?emulate` (IWSDK re-shows it in its input update, which runs first). `&iwsdkhand=1` keeps it, for comparison. Quest is unchanged: the outline and occluder still draw over real hands there.
+  - Hardening: the laptop hand is now opaque, one pass (no depth pre-pass, no reliance on two shader programs giving identical depth). The wrist and forearm are the palm's own surface carried on past the wrist (no separate tube); the forearm end fades out with a fine screen-door dither toward the floor colour.
+  - `test/hand-poses.mjs` with `PROFILES_DIR=<unpacked @webxr-input-profiles/assets>/dist/profiles` serves those CDN files locally, so the run loads IWSDK's hand like a real browser and checks that it is hidden. Headless SwiftShader does not draw IWSDK's skinned hand even when loaded, so the visual proof of this fix is a real-browser check.
+- **Help panel:** the page no longer scrolls in laptop mode (arrow keys and Space are cancelled before any async work; html/body overflow hidden), and the panel follows the visible area if the browser is pinch-zoomed. The pose test now checks the panel is fully inside the window, with desktop-style scrollbars on.
+- **Joint dots** are hidden in normal laptop play. `&debug=1` / `?skeleton=1` shows the full skeleton through a faint (30 %) hand.
+- **See-through cues:** where the hand covers the landing ring, a seed or a flower (for example a flower inside a fist), a faint copy is drawn on top (reversed depth test), so cues never vanish.
+- **Pose blending:** the laptop keys now use IWER's `set_hand_pose` with `duration: 0.22` (minimum-jerk). The game reads the blended joints, so drawing and catch logic stay in step.
+- **Hand size:** Small/Medium/Large are now 0.86 / 1 / 1.16 × thickness (were 0.8 / 1 / 1.25) so Large does not bury a resting seed. Positions are unchanged.
+- **Test aids (laptop only):** `__palmful.freeze(true/false)` pauses the game while the hand still moves; `window.__palmfulFitPaused` stops the auto camera fit for angled screenshots. Players never trigger them.
+- **Checked:** `test/hand-poses.mjs` captures open, receive, cup-with-seed and fist from the front, side and back (`docs/evidence/laptop-hand-poses.jpg`, headed Chromium at 1897×869), and checks the palm is lit and the resting seed is over the game's palm centre.
+- **Second real-browser review (4 Nov 2026):** black palm confirmed fixed; four follow-ups.
+  - **Fist thumb hook:** IWER's built-in fist arches the thumb high over the fingers, and the thick thumb tube made that an oversized hook. The laptop fist now takes its thumb from IWER's built-in `hook` pose (resting along the curled index), and the thumb tube is about 9 % thinner. Laptop only (`set_hand_pose` finger blend); neither the fist check (`fingertipReach`) nor the cup check reads the thumb, so gameplay is unchanged.
+  - **Cup bowl:** the built-in cup left the thumb lying flat out to the side, so the hand did not read as a bowl. The laptop cup now blends the thumb 80 % toward IWER's `claw` thumb, so it rises opposite the curved fingers. The cup metric is unchanged (0.66).
+  - **Inspection camera (laptop only):** `[ ]` orbits around the hand's length in 5° steps up to 180° (90° side, 180° the back of the hand, from below), `- =` turns around it, `R` puts the camera back. Only the emulated headset moves; the game is paused through the same per-frame pause the tests use (catch and bloom), the camera fit is off, the floating cards are hidden so they do not cover the hand, and movement keys are ignored (C/F still change the pose). `test/hand-poses.mjs` takes its side and back views with these keys and checks that the palm and the seed do not move and that R restores the camera; `test/laptop-e2e.mjs` checks the same in bloom mode (it caught a bloom-only crash during development: the progress card exists only in catch mode).
+  - **Completion text overflow:** the cards are canvas text in the viewer's system font; on Windows (Segoe UI) "open your hand, then make a fist to play again" at a fixed 50 px ran past the card. All card lines now shrink to fit (`fitFont`). This also applies on Quest, where it only changes text that would otherwise overflow. `test/catch-e2e.mjs` checks the drawn widths, and with `WIDE_FONT=1` it does so in DejaVu Sans, which is wider than Segoe UI (`docs/evidence/laptop-completion-card.jpg`).
+  - **Help panel at the left edge:** not reproduced. In the four review screenshots the panel's right edge is consistently about 273 px from the start of its text: its full width plus padding, so the panel itself was intact. The screenshots appear to start a few pixels inside the window. In headed Chromium the panel's left edge was at 12 px, and a sideways touchpad swipe over it did not shift it. The margin is now 16 px (checked at 1820×836, 1897×869 and 1878×881), and the panel cannot scroll sideways (`overflow-x: hidden`, long words wrap).
+
+## Not verified (needs a headset): see `docs/QUEST_TEST_GUIDE.md`
 
 ## Open issues
 
 - External CDN loads: IWSDK fetches hand-visual models from cdn.jsdelivr.net (fine online; in a blocked network the hand is tracked without a visual).
-- IWSDK hand visuals in AR on a real Quest: unknown whether a virtual hand is drawn over the real one.
+- IWSDK hand visuals: confirmed from the IWSDK 1.1.0-rc.2 source (`xr-input` `AnimatedHand`, always enabled). On a headset it draws a white outline over each tracked hand, plus an invisible depth-writing hand mesh that hides virtual objects behind the fingers. The model loads from cdn.jsdelivr.net. Whether the outline lines up with the real hand is a Quest test item.
 - Finger occlusion not implemented.
-- Onboarding is a text hint; no hatch moment yet.
 - Emulator screenshot via the CLI crashes the managed browser in this container; Playwright `page.screenshot` (test/capture.mjs) works.
 
 ## Next task
@@ -123,6 +171,6 @@ Same creature, same tilt-and-bloom loop, but Mote rides a small **leaf you hold 
 
 ## Demo-video fallback (if no headset footage)
 
-Emulator footage with `?skeleton=1` (joint dots stand in for the hand), clearly
+Emulator footage (the shaded laptop 3D hand stands in for the hand; `?skeleton=1` adds bright joints), clearly
 captioned as emulator footage, plus an honest line in the description. This is
 allowed by the rules but is much weaker than real passthrough footage.
