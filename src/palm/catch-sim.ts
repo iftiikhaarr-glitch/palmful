@@ -81,6 +81,61 @@ export interface CatchInput {
   spawnFor: SpawnFor;
 }
 
+/**
+ * Why a seed cannot land on the selected hand right now (the first failing
+ * condition, in this order), or 'ready'. These are the exact conditions
+ * stepCatch uses, so the ring and the debug panel can never disagree with it.
+ * - 'no-hand': the selected hand is not tracked
+ * - 'palm-not-up': palm normal.y < PALM_UP_MIN
+ * - 'cup-too-high': cup >= CUP_ON (the hand reads as closed, so no landing)
+ * - 'not-under': palm centre farther than the catch radius from the seed (horizontal)
+ * - 'seed-above': falling seed still more than LAND_ABOVE above the palm (normal: wait)
+ * - 'palm-above-seed': the seed is already more than LAND_BELOW below the palm
+ * A waiting seed only needs the first three (it starts to fall for an open,
+ * palm-up hand); a falling seed needs all of them.
+ */
+export type LandBlock = 'ready' | 'no-hand' | 'palm-not-up' | 'cup-too-high' | 'not-under' | 'seed-above' | 'palm-above-seed';
+
+export interface LandCheck {
+  block: LandBlock;
+  /** the ring's "green": tracked, palm up, open and under the seed (height excluded: the seed is on its way) */
+  ready: boolean;
+  /** horizontal distance from palm centre to the seed, metres */
+  off: number;
+  /** seed height above the palm centre, metres */
+  dy: number;
+}
+
+export const makeLandCheck = (): LandCheck => ({ block: 'no-hand', ready: false, off: 0, dy: 0 });
+const scratchCheck = makeLandCheck();
+
+/** Allocation-free: fills and returns `out`. */
+export function landingCheck(st: CatchState, inp: CatchInput, out: LandCheck = scratchCheck): LandCheck {
+  const radius = inp.radius ?? CATCH_RADIUS;
+  out.off = Math.hypot(st.pos.x - inp.center.x, st.pos.z - inp.center.z);
+  out.dy = st.pos.y - inp.center.y;
+  out.ready = false;
+  if (!inp.tracked) out.block = 'no-hand';
+  else if (inp.normal.y < PALM_UP_MIN) out.block = 'palm-not-up';
+  else if (inp.cup >= CUP_ON) out.block = 'cup-too-high';
+  else if (st.seed === 'waiting') out.block = 'ready';
+  else if (out.off > radius) out.block = 'not-under';
+  else {
+    out.ready = true;
+    out.block = out.dy > LAND_ABOVE ? 'seed-above' : out.dy < -LAND_BELOW ? 'palm-above-seed' : 'ready';
+  }
+  if (st.seed === 'waiting') out.ready = out.block === 'ready' && out.off <= radius;
+  return out;
+}
+
+/**
+ * One-hand Catch follows a single selected hand. True when the OTHER hand is
+ * tracked, palm up and under the seed: a likely "wrong hand" (diagnostic only).
+ */
+export function otherHandUnder(st: CatchState, other: { tracked: boolean; center: Vec3; normal: Vec3 }, radius = CATCH_RADIUS): boolean {
+  return other.tracked && other.normal.y >= PALM_UP_MIN && Math.hypot(st.pos.x - other.center.x, st.pos.z - other.center.z) <= radius;
+}
+
 /** Catch radius from the measured palm width (index-to-pinky knuckle distance). */
 export function catchRadiusForPalm(palmWidth: number): number {
   const r = palmWidth * CATCH_TOLERANCE;
@@ -158,9 +213,6 @@ export function selectKind(st: CatchState, kind: SeedKind, spawnFor: SpawnFor): 
 /** Advance the catch game by dt seconds and report what happened. */
 export function stepCatch(st: CatchState, inp: CatchInput, dt: number): CatchEvent {
   dt = Math.min(dt, 0.05);
-  const palmUp = inp.tracked && inp.normal.y >= PALM_UP_MIN;
-  const open = inp.cup < CUP_ON;
-  const radius = inp.radius ?? CATCH_RADIUS;
 
   switch (st.seed) {
     case 'done':
@@ -186,7 +238,7 @@ export function stepCatch(st: CatchState, inp: CatchInput, dt: number): CatchEve
 
     case 'waiting':
       // Glows in place; starts its fall once a hand is offered open, palm up.
-      if (!palmUp || !open) return 'none';
+      if (landingCheck(st, inp).block !== 'ready') return 'none';
       st.t += dt;
       if (st.t >= TELEGRAPH_S) {
         st.seed = 'falling';
@@ -198,9 +250,8 @@ export function stepCatch(st: CatchState, inp: CatchInput, dt: number): CatchEve
       if (!inp.tracked) return 'none'; // pause: tracking loss never costs a seed
       st.t += dt;
       st.pos.y -= FALL_SPEED * dt; // straight down: predictable
-      const near = Math.hypot(st.pos.x - inp.center.x, st.pos.z - inp.center.z) <= radius;
-      const dy = st.pos.y - inp.center.y;
-      if (palmUp && open && near && dy <= LAND_ABOVE && dy >= -LAND_BELOW) {
+      // land: tracked, palm up, open, under the seed and at palm height
+      if (landingCheck(st, inp).block === 'ready') {
         st.seed = 'resting';
         st.t = 0;
         st.restT = 0;

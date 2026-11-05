@@ -8,8 +8,11 @@ import {
   type CatchState,
   catchRadiusForPalm,
   LANES,
+  landingCheck,
   laneSpawn,
   makeCatch,
+  otherHandUnder,
+  PALM_UP_MIN,
   nextKind,
   resetCatch,
   SEED_KINDS,
@@ -243,4 +246,103 @@ test('lanes are fixed per colour: predictable, and switching seeds needs a hand 
   assert.ok(Math.hypot(b.x - g.x, b.z - g.z) >= 0.1 && Math.hypot(pk.x - b.x, pk.z - b.z) >= 0.1);
   const turned = laneSpawn('pink', head, 1, 0, v3());
   assert.ok(Math.abs(turned.x - 0.36) < 1e-9 && Math.abs(turned.z) < 1e-9, 'lanes turn with the head');
+});
+
+// ---- landing feedback must match the landing rule (Aaron's Quest recording:
+// green ring, seed rejected, open-looking hand reading cup 0.42-0.46) ----
+
+/** A falling seed straight above a palm at a chosen offset/height, with chosen cup and tilt. */
+function fallingAt(off: number, dy: number) {
+  const st = makeCatch(above);
+  st.seed = 'falling';
+  const center = v3(0, 1, 0);
+  st.pos.x = off;
+  st.pos.y = 1 + dy;
+  st.pos.z = 0;
+  return { st, center };
+}
+
+test('green ring never lies: "ready" and "ready" block agree with stepCatch on every input (grid)', () => {
+  let landed = 0, refused = 0;
+  for (const cup of [0, 0.2, 0.41, 0.42, 0.45, 0.6]) {
+    for (const ny of [0.3, 0.54, 0.56, 1]) {
+      for (const off of [0, 0.05, 0.07, 0.09]) {
+        for (const dy of [0.08, 0.04, 0, -0.02, -0.04]) {
+          for (const tracked of [true, false]) {
+            const { st, center } = fallingAt(off, dy);
+            const normal = v3(Math.sqrt(1 - ny * ny), ny, 0);
+            const inp = { tracked, center, normal, cup, radius: 0.072, spawnFor: above };
+            const c = { ...landingCheck(st, inp) };
+            const ev = stepCatch(st, inp, 0); // dt 0: no fall this step, same position as the check
+            assert.equal(ev === 'land', c.block === 'ready', `cup ${cup} ny ${ny} off ${off} dy ${dy} tracked ${tracked}: ${c.block}`);
+            // the ring is green exactly when the hand itself is acceptable (height aside)
+            const handOk = tracked && ny >= PALM_UP_MIN && cup < CUP_ON && off <= 0.072;
+            assert.equal(c.ready, handOk, `ring ready mismatch: cup ${cup} ny ${ny} off ${off} tracked ${tracked}`);
+            if (ev === 'land') landed++;
+            else refused++;
+          }
+        }
+      }
+    }
+  }
+  assert.ok(landed > 0 && refused > 0);
+});
+
+test("Aaron's case: palm up and under the seed but cup 0.45 -> ring NOT green, reason cup-too-high, no landing", () => {
+  const { st, center } = fallingAt(0, 0.01);
+  const inp = { tracked: true, center, normal: v3(0, 1, 0), cup: 0.45, radius: 0.072, spawnFor: above };
+  const c = landingCheck(st, inp);
+  assert.equal(c.ready, false);
+  assert.equal(c.block, 'cup-too-high');
+  // the seed falls straight through and is missed, exactly as recorded
+  const evs: CatchEvent[] = [];
+  for (let i = 0; i < 72 * 12 && st.seed === 'falling'; i++) {
+    const e = stepCatch(st, inp, DT);
+    if (e !== 'none') evs.push(e);
+  }
+  assert.deepEqual(evs, ['miss']);
+  // the same hand reading 0.30 is green and the seed lands
+  const b = fallingAt(0, 0.01);
+  const inp2 = { ...inp, center: b.center, cup: 0.3 };
+  assert.equal(landingCheck(b.st, inp2).ready, true);
+  assert.equal(stepCatch(b.st, inp2, 0), 'land');
+});
+
+test('a waiting seed does not start for a hand reading cup >= 0.42 (reason cup-too-high), and starts below it', () => {
+  const st = makeCatch(above);
+  const inp = { tracked: true, center: v3(0.001, 1.012, -0.052), normal: v3(0, 1, 0), cup: 0.45, radius: 0.072, spawnFor: above };
+  assert.equal(landingCheck(st, inp).block, 'cup-too-high');
+  for (let i = 0; i < 72 * 5; i++) stepCatch(st, inp, DT);
+  assert.equal(st.seed, 'waiting');
+  inp.cup = 0.3;
+  assert.equal(landingCheck(st, inp).block, 'ready');
+  for (let i = 0; i < 72 * 1.2; i++) stepCatch(st, inp, DT);
+  assert.equal(st.seed, 'falling');
+});
+
+test('landing reasons, in order: no hand, palm not up, cup, not under, seed above, palm above', () => {
+  const base = { tracked: true, normal: v3(0, 1, 0), cup: 0.1, radius: 0.072, spawnFor: above };
+  const at = (off: number, dy: number, o: Partial<typeof base> = {}) => {
+    const { st, center } = fallingAt(off, dy);
+    return landingCheck(st, { ...base, center, ...o }).block;
+  };
+  assert.equal(at(0, 0, { tracked: false, cup: 0.9 }), 'no-hand');
+  assert.equal(at(0, 0, { normal: v3(1, 0, 0), cup: 0.9 }), 'palm-not-up');
+  assert.equal(at(0.2, 0, { cup: 0.9 }), 'cup-too-high');
+  assert.equal(at(0.2, 0), 'not-under');
+  assert.equal(at(0, 0.2), 'seed-above');
+  assert.equal(at(0, -0.1), 'palm-above-seed');
+  assert.equal(at(0, 0), 'ready');
+});
+
+test('one-hand Catch follows one hand: the other hand under the seed is reported, and never lands it', () => {
+  const { st, center: selectedFarAway } = fallingAt(0, 0);
+  selectedFarAway.x = 0.3; // the selected (right) hand is 30 cm away
+  const other = { tracked: true, center: v3(0, 1, 0), normal: v3(0, 1, 0) };
+  assert.equal(otherHandUnder(st, other, 0.072), true);
+  assert.equal(otherHandUnder(st, { ...other, normal: v3(0, -1, 0) }, 0.072), false);
+  assert.equal(otherHandUnder(st, { ...other, tracked: false }, 0.072), false);
+  const inp = { tracked: true, center: selectedFarAway, normal: v3(0, 1, 0), cup: 0.1, radius: 0.072, spawnFor: above };
+  assert.equal(landingCheck(st, inp).block, 'not-under');
+  assert.equal(stepCatch(st, inp, 0), 'none'); // only the selected hand counts
 });

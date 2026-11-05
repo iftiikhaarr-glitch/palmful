@@ -58,8 +58,12 @@ import {
   CAUGHT_S,
   CUP_HOLD,
   CUP_ON,
+  type LandBlock,
+  landingCheck,
   laneSpawn,
+  makeLandCheck,
   nextKind,
+  otherHandUnder,
   MISSED_S,
   makeCatch,
   PALM_UP_MIN,
@@ -229,6 +233,8 @@ declare global {
       hasBackdrop: boolean;
       handSize: () => string;
       restartArmed: () => boolean;
+      /** catch: the selected hand and why the seed can or cannot land (same conditions as the game) */
+      landing: () => { hand: string; block: string; ready: boolean; wrongHand: boolean; cup: number; offCm: number; dyCm: number; ringColor: string; other: Vec3 | null; seedState: string } | null;
       /** bloom target marker: finger, petal colour, and its distance (m) from that fingertip */
       target: () => { visible: boolean; finger: string; color: string; tipDist: number };
       /** laptop test aid: freeze at the next catch/miss cue (true), resume (false) */
@@ -359,7 +365,12 @@ export class PalmfulSystem extends createSystem({}) {
   private iconT = 0;
   private coachPlaced = false;
   private coachTarget = new Vector3();
-  private ringReady = false; // catch: an open palm is under the seed (the ring is green)
+  private ringReady = false; // catch: the selected hand would let the seed land (the ring is green)
+  private landing = makeLandCheck(); // catch: why the seed can / cannot land, from catch-sim's own rule
+  private wrongHand = false; // one-hand catch: the OTHER hand is palm up under the seed
+  private otherJ: HandJoints = makeHandJoints(); // one-hand catch: the unselected hand, for diagnostics only
+  private otherFrame: PalmFrame = makePalmFrame();
+  private otherTracked = false;
   private goalT = 0; // seconds left to show "1 of 3" after a catch or bloom
   private lastCount = 0;
   private fistT = 0;
@@ -486,6 +497,21 @@ export class PalmfulSystem extends createSystem({}) {
       hasBackdrop: this.root.getObjectByName('emulator-backdrop') !== undefined,
       handSize: () => this.handSize,
       restartArmed: () => this.restartArmed,
+      landing: () =>
+        MODE !== 'catch' || !this.cst
+          ? null
+          : {
+              hand: this.selectedHand() ?? 'none',
+              block: this.landing.block,
+              ready: this.landing.ready,
+              wrongHand: this.wrongHand,
+              cup: this.cup,
+              offCm: this.landing.off * 100,
+              dyCm: this.landing.dy * 100,
+              ringColor: '#' + this.ringMat.color.getHexString(),
+              other: this.otherTracked ? { ...this.otherFrame.center } : null,
+              seedState: this.cst.seed,
+            },
       target: () => {
         const f = this.st.target;
         const tip = this.tipPos(f, 0, new Vector3());
@@ -601,7 +627,7 @@ export class PalmfulSystem extends createSystem({}) {
     // while it animates). With &debug=1 the metrics are drawn below.
     this.hintCanvas = document.createElement('canvas');
     this.hintCanvas.width = COACH_W;
-    this.hintCanvas.height = DEBUG ? COACH_H + 190 : COACH_H;
+    this.hintCanvas.height = DEBUG ? COACH_H + 250 : COACH_H;
     this.hintTex = new CanvasTexture(this.hintCanvas);
     const w = CARD_W;
     const h = w * (this.hintCanvas.height / this.hintCanvas.width);
@@ -799,6 +825,11 @@ export class PalmfulSystem extends createSystem({}) {
     const otherSide = this.primary === 'right' ? 'left' : 'right';
     const other = hands[otherSide];
 
+    // One-hand Catch follows only the selected hand; read the other one (raw,
+    // unfiltered) just to tell the player in &debug=1 when it is the one under the seed.
+    if (MODE === 'catch') {
+      this.otherTracked = !!other && this.readJoints(other, frame, ref, 0, this.otherJ) && computePalmFrame(this.otherJ, otherSide, this.otherFrame);
+    }
     if (mine && this.readJoints(mine, frame, ref, dt) && computePalmFrame(this.joints, this.primary, this.frame)) {
       this.absentS = 0;
       this.metrics.handedness = this.primary;
@@ -1571,6 +1602,11 @@ export class PalmfulSystem extends createSystem({}) {
 
   private renderCatchSeed(time: number, dt: number): void {
     const cst = this.cst!;
+    landingCheck(cst, { tracked: this.tracked, center: this.frame.center, normal: this.frame.normal, cup: this.cup, radius: this.radius, spawnFor: this.spawnFor }, this.landing);
+    const b = this.landing.block;
+    this.wrongHand =
+      !TWO_HANDS && (b === 'not-under' || b === 'no-hand') &&
+      otherHandUnder(cst, { tracked: this.otherTracked, center: this.otherFrame.center, normal: this.otherFrame.normal }, this.radius);
     const g = this.catchSeed;
     g.position.set(cst.pos.x, cst.pos.y, cst.pos.z);
     g.rotation.y = time * 1.2;
@@ -1610,10 +1646,9 @@ export class PalmfulSystem extends createSystem({}) {
       this.ringY = y;
       r.position.set(cst.pos.x, y, cst.pos.z);
       r.scale.setScalar(this.radius);
-      const ready = (this.ringReady =
-        this.tracked &&
-        this.frame.normal.y >= PALM_UP_MIN &&
-        Math.hypot(cst.pos.x - this.frame.center.x, cst.pos.z - this.frame.center.z) <= this.radius);
+      // Green only when the game would accept this hand: the same check as the
+      // landing rule (tracked, palm up, cup below CUP_ON, under the seed).
+      const ready = (this.ringReady = this.landing.ready);
       this.ringMat.color.set(ready ? CUE.ready : CUE.waiting);
       this.ringMat.opacity = ready ? 1 : 0.85;
     }
@@ -2001,6 +2036,30 @@ export class PalmfulSystem extends createSystem({}) {
     this.coachTarget.set(ax + px * lift, ay + py * lift, az + pz * lift);
   }
 
+  /** The hand Catch is following: one-hand = the hand chosen at the start; two-hand = the engaged hand. */
+  private selectedHand(): 'left' | 'right' | null {
+    return TWO_HANDS ? this.eng.side : this.primary;
+  }
+
+  /** &debug=1: which hand counts, and the first reason the seed cannot land (or that it can). */
+  private landingLine(): string {
+    const cst = this.cst!;
+    const L = this.landing;
+    const hand = `${(this.selectedHand() ?? 'no').toUpperCase()} hand`;
+    if (cst.seed !== 'waiting' && cst.seed !== 'falling') return `${hand}  ${cst.seed}`;
+    if (this.wrongHand) return `${hand}  LAND: other hand under it, use ${this.selectedHand()}`;
+    const why: Record<LandBlock, string> = {
+      'no-hand': 'hand not tracked',
+      'palm-not-up': `palm not up (${this.frame.normal.y.toFixed(2)} < ${PALM_UP_MIN})`,
+      'cup-too-high': `cup too high (${this.cup.toFixed(2)} >= ${CUP_ON})`,
+      'not-under': `not under the seed (${(L.off * 100).toFixed(0)} > ${(this.radius * 100).toFixed(0)} cm)`,
+      'seed-above': `ok, seed ${(L.dy * 100).toFixed(0)} cm above`,
+      'palm-above-seed': `palm above the seed (${(-L.dy * 100).toFixed(0)} cm)`,
+      ready: cst.seed === 'waiting' ? 'ok, seed will fall' : 'ok, landing',
+    };
+    return `${hand}  LAND: ${why[L.block]}`;
+  }
+
   private renderHint(delta: number): void {
     // "1 of 3" after each catch or bloom, for a moment
     const count = MODE === 'catch' ? (this.cst?.catches ?? 0) : this.st.blooms;
@@ -2059,16 +2118,28 @@ export class PalmfulSystem extends createSystem({}) {
           ? `${this.cst.seed}  caught ${this.cst.catches}  missed ${this.cst.misses}  spilled ${this.cst.spills}  cup ${this.cup.toFixed(2)}`
           : `${this.phase}  ${this.st.place}  ${this.st.mood}  blooms ${this.st.blooms}  1st bloom ${m.firstBloomS?.toFixed(1) ?? '-'} s`,
       ];
+      if (MODE === 'catch' && this.cst) dbg.push(this.landingLine());
       c.clearRect(0, COACH_H, cv.width, cv.height - COACH_H);
       c.fillStyle = 'rgba(20,16,28,0.85)';
       c.beginPath();
       c.roundRect(8, COACH_H + 4, cv.width - 16, cv.height - COACH_H - 12, 32);
       c.fill();
-      c.font = '32px ui-monospace, monospace';
-      c.fillStyle = '#b8f0c8';
       c.textAlign = 'center';
       c.textBaseline = 'middle';
-      dbg.forEach((line, i) => c.fillText(line, cv.width / 2, COACH_H + 48 + i * 52));
+      dbg.forEach((line, i) => {
+        // Catch's landing line (4th): bold, amber while the seed cannot land,
+        // green when it can, so it reads at headset distance. Every line
+        // shrinks to fit the panel whatever the system font.
+        const land = i === 3;
+        const blocked = land && !/LAND: ok/.test(line) && /LAND:/.test(line);
+        let size = 32;
+        do {
+          c.font = `${land ? '700 ' : ''}${size}px ui-monospace, monospace`;
+          size -= 2;
+        } while (size >= 22 && c.measureText(line).width > cv.width - 72);
+        c.fillStyle = land ? (blocked ? '#ffc061' : '#7cf29a') : '#b8f0c8';
+        c.fillText(line, cv.width / 2, COACH_H + 48 + i * 52);
+      });
     }
     this.hintTex.needsUpdate = true;
   }

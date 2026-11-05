@@ -141,6 +141,7 @@ npm run build     # production build in dist/
 npx vite preview --port 4173 &   # serves dist/ at https://localhost:4173
 npm run e2e -- https://localhost:4173/ .   # plays a full bloom session headlessly
 node test/catch-e2e.mjs https://localhost:4173/ .   # plays a full catch session
+node test/catch-feedback-e2e.mjs https://localhost:4173/ .   # landing ring/reason agree with the landing rule; selected hand
 node test/twohand-e2e.mjs https://localhost:4173/ .   # two-hand catch session
 node test/landing-e2e.mjs https://localhost:4173/ .   # 2D landing; backdrop only with ?emulate
 node test/contrast-check.mjs https://localhost:4173/ .   # laptop view: object contrast >= 3:1
