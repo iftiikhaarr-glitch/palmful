@@ -2,15 +2,19 @@
 
 ## Where the work is
 
-- **Onboarding PR:** https://github.com/iftiikhaarr-glitch/palmful/pull/12,
-  **merged** into `main` as `5a147a1` at the owner's request, after their
-  laptop review of the Catch steps.
-- **Deployment:** Pages run #13 passed every check (typecheck, unit tests,
-  build, the bloom/catch/two-hand/landing sessions, contrast, and coach layout
-  at 1280×800 and 700×560), then deployed:
+- **PR #12 merged into `main` as `5a147a1`, and Pages run #13 deployed it
+  successfully.** The PR is the in-game coach, the flower target marker and the
+  fanned flowers: https://github.com/iftiikhaarr-glitch/palmful/pull/12. It was
+  merged at the owner's request after their laptop review of the Catch steps.
+  The run passed every check (typecheck, unit tests, build, the
+  bloom/catch/two-hand/landing sessions, contrast, and coach layout at
+  1280×800 and 700×560) before deploying:
   https://github.com/iftiikhaarr-glitch/palmful/actions/runs/41978952075
-- **This handoff update:** branch `claude/peaceful-fermi-fgkd3n`; its own small
-  docs-only PR, not merged.
+- **Live now** (nothing is awaiting merge):
+  - Bloom: https://iftiikhaarr-glitch.github.io/palmful/
+  - Catch: https://iftiikhaarr-glitch.github.io/palmful/?catch=1
+- **Handoff updates:** docs-only PR #13
+  (https://github.com/iftiikhaarr-glitch/palmful/pull/13).
 - **Devpost:** unchanged.
 - **Aaron's recordings:** not received. As of 5 Nov there is no file in the
   cloud session and no new GitHub issue, branch or upload.
@@ -55,7 +59,7 @@
 - **Unchanged:** game rules, thresholds (`CUP_ON` 0.42, landing, fall speed,
   lanes, restart arming), the Quest camera and both modes.
 
-## Fixed after the user's preview review (5 Nov 2026)
+## Fixed after the owner's laptop review (5 Nov 2026; all merged in PR #12)
 
 - **Bloom, fist before the end:** the coach kept saying "Tilt gently toward the
   light" with "Open palm" ticked while the hand was a fist. Now any closed hand
@@ -147,14 +151,16 @@ frame rate.
      show it, and only after the user agrees.
    - **Everything else:** note it; don't change it.
 4. Fix only the blocking items on a fresh branch from `main` (PR #12 is
-   merged; open a new PR). Rerun the suite above. Build a preview with
-   `npx vite build --base ./ --outDir <scratch>`, then push it to
+   merged; open a new PR). Rerun the suite above. If the owner wants to try
+   the fix before merging, build a laptop preview with
+   `npx vite build --base ./ --outDir <scratch>` and push it to
    `preview-coach`, served at
    `https://raw.githack.com/iftiikhaarr-glitch/palmful/<commit>/index.html`.
-5. Request a focused headset retest:
-   - **Part 0** with a new first-time player on the preview link (or the live
-     links, if the fix is merged): Catch first, then Bloom, with the
-     facilitator silent.
+5. Request a focused headset retest on the live links once the fix is merged:
+   - **Part 0** with a new first-time player: Catch first
+     (https://iftiikhaarr-glitch.github.io/palmful/?catch=1), then Bloom
+     (https://iftiikhaarr-glitch.github.io/palmful/), with the facilitator
+     silent.
    - Then only the Part A/B rows that failed or were inconclusive.
 6. Report to the user before merging. Merge only with their approval. Then
    check that the Pages deployment passed, and update `SUBMISSION_DRAFT.md`
