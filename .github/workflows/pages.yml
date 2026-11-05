@@ -37,6 +37,7 @@ jobs:
           mkdir -p e2e-shots
           node test/laptop-e2e.mjs https://localhost:4173/ e2e-shots
           node test/catch-e2e.mjs https://localhost:4173/ e2e-shots
+          node test/catch-feedback-e2e.mjs https://localhost:4173/ e2e-shots
           node test/twohand-e2e.mjs https://localhost:4173/ e2e-shots
           node test/landing-e2e.mjs https://localhost:4173/ e2e-shots
           node test/contrast-check.mjs https://localhost:4173/ e2e-shots
