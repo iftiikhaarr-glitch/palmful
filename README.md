@@ -11,6 +11,27 @@ tests and full-session runs in emulated WebXR. **Nothing has been tested on a
 headset yet.** [`docs/QUEST_TEST_GUIDE.md`](docs/QUEST_TEST_GUIDE.md) lists what
 still needs a Quest 3/3S and the pass/fail criteria.
 
+## In-game coach (first session)
+
+The game teaches itself; nobody needs to read this page to play. One card at
+a time shows the next action in a few plain words, with a small animated hand:
+
+- **Bloom:** ① *Hold out your hand* (open, palm up, under the seed) →
+  ② *Tilt gently toward the flower* (Mote slides to the glowing fingertip) →
+  "1 of 3 in bloom" → at the end, *make a fist to play again*. Closing the
+  hand (a fist or a cup) before the end brings back step 1, *Open your hand*.
+- **Catch:** a three-step strip, **① Under → ② Land → ③ Cup**: *Open palm under
+  the seed* → *Keep it open. Let it land.* (once the ring is green) → *Now cup
+  gently* (green, only after the seed has landed). Then "1 of 3 caught · next:
+  blue, on your right", and at 3/3 *Open your hand* → *Now make a fist*.
+
+The card sits away from the seed and the hand: in Catch above the progress
+display; in Bloom above the waiting seed, then ahead and above the hand while
+playing. Each card goes as soon as its step is done. After a restart only the
+reminders remain (for example *Bring your hand back*, or *Open your hand* if
+the hand is cupped before the seed lands). The game rules and thresholds are
+unchanged.
+
 ## Try it on a laptop (no headset)
 
 Two versions. Both run in Chrome or Edge with an emulated hand. Click
@@ -124,6 +145,7 @@ node test/twohand-e2e.mjs https://localhost:4173/ .   # two-hand catch session
 node test/landing-e2e.mjs https://localhost:4173/ .   # 2D landing; backdrop only with ?emulate
 node test/contrast-check.mjs https://localhost:4173/ .   # laptop view: object contrast >= 3:1
 node test/layout-sizes.mjs https://localhost:4173/ .   # 5 window sizes x both modes: nothing clipped
+node test/coach-layout.mjs https://localhost:4173/ .   # every coach card: inside the window, clear of seed/hand
 npm run dev       # IWSDK dev server + emulator in a managed browser
 ```
 
@@ -140,6 +162,7 @@ src/palmful-system.ts      IWSDK system: reads joints, renders, metrics, restart
 src/laptop-emulator.ts     ?emulate=1 laptop mode (IWER + keyboard hand, view fitting)
 src/hand-silhouette.ts     laptop-only procedural 3D hand (and the see-through cue copies)
 src/landing.ts             2D page: Enter AR button, or where to play
+src/coach.ts               the coach card and its animated hand pictograms (canvas drawing)
 test/                      unit tests + emulator drive scripts
 docs/PROJECT_RECORD.md     decisions, verified facts, open issues, next task
 docs/DEVICE_TEST.md        headset protocol and pre-registered decision rules

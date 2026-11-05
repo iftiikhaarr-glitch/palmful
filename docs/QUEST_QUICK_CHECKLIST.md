@@ -1,7 +1,8 @@
 # Palmful: Quest 3 / 3S quick checklist
 
-About **13 minutes** (3 setup, 3 Bloom, 6 Catch including a 10 s opening
-check, 1 to send results), plus 2 optional minutes for two-hand play.
+About **20 minutes** (3 setup, up to 8 for a first-time player, 3 Bloom,
+6 Catch including a 10 s opening check, 1 to send results), plus 2 optional
+minutes for two-hand play.
 
 This is a short version of [`QUEST_TEST_GUIDE.md`](QUEST_TEST_GUIDE.md).
 **If the two documents ever differ, the detailed guide is the source of truth.**
@@ -20,6 +21,23 @@ shaded 3D hand from the laptop view does not exist there.
   Camera → Record video.
 - To change part, press the Meta button, close the browser tab and open the
   next address.
+
+## Part 0: first-time player (5–8 min, do this first)
+
+Only with **someone who has never seen or read about Palmful**. They must not
+read this checklist. The game now teaches itself with one card at a time.
+
+- [ ] Say only: *"A game for your bare hands. Controllers down. Pinch Enter AR
+      and try to play. Think aloud. I can't help you."* Then stay silent.
+- [ ] **Catch first**: https://iftiikhaarr-glitch.github.io/palmful/?catch=1
+      until 3/3 or 3 minutes; then ask *"Can you play again?"*
+- [ ] **Then Bloom**: https://iftiikhaarr-glitch.github.io/palmful/ the same
+      way.
+- [ ] Note: seconds to the first catch / bloom; every hesitation or question
+      (video time); any cup **before** the seed landed; whether they knew there
+      are three; whether they restarted (open hand, then fist) unaided; any
+      card that was hard to read or in the way; their own words: *"What was
+      confusing?"*
 
 ## Part A: Bloom (3 min)
 
@@ -41,9 +59,10 @@ pinch **Enter AR**.
 - [ ] **Opening check (10 s), before raising your hand.** Stay seated and
       rest both hands comfortably out of the headset's view, for example
       lowered at your sides (no need to hold them behind your back). A seed
-      waits in front of you, pulsing, with **"Hold out your hand"** just under it. Look normally at it, then tip your head
-      slightly downward. Say aloud: does its glow cover the "Hold out your
-      hand" text, or make either the seed or the instruction hard to see?
+      waits in front of you, pulsing; the card **"Hold out your hand, palm
+      up"** sits above the progress display. Look normally at the seed, then
+      tip your head slightly downward. Say aloud: does its glow touch or cover
+      any text, or make the seed or the text hard to see?
       If it says "Turn your palm up" instead, the headset can see a hand:
       lower your hands a little further out of view and look again.
 - [ ] **Cup calibration.** Read the `cup` number aloud for 5 s each with your
@@ -84,9 +103,10 @@ other hand. This part never decides which mode to keep.
 4. One line each:
    - Bloom: did Mote look like it was sitting on your skin (yes, mostly or no)?
    - Catch: did moving and cupping feel natural? Any miss that felt unfair?
-   - Catch opening: did the pulsing seed's glow cover the "Hold out your hand"
-     text, or make the seed or the instruction hard to see (looking normally,
-     and looking slightly downward)?
+   - Catch opening: did the pulsing seed's glow touch or cover any text, or
+     make the seed or the text hard to see (looking normally, and looking
+     slightly downward)?
+   - Part 0: the first-time player's notes and their own words.
    - Which one would you rather play again, and why?
    - Anything uncomfortable (arm, eyes, nausea)?
 
@@ -143,7 +163,10 @@ Some results point to a fix instead of a mode choice:
   and retest.
 - Low frame rate: simplify the scene.
 - Confusion in the first minute: fix the onboarding.
-- Catch opening glow covers the "Hold out your hand" text or makes the
+- First-time player confused, cupped early, or could not restart: fix the
+  coach cards (wording, timing, placement) and retest with another
+  first-time player. Not a reason to change the game rules.
+- Catch opening glow covers instruction or progress text or makes the
   opening confusing: record it as a usability issue. It needs a fix (hint
   position or pulse) and a retest before the final mode choice. On its own it
   is not a reason to drop Catch.

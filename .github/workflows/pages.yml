@@ -40,6 +40,7 @@ jobs:
           node test/twohand-e2e.mjs https://localhost:4173/ e2e-shots
           node test/landing-e2e.mjs https://localhost:4173/ e2e-shots
           node test/contrast-check.mjs https://localhost:4173/ e2e-shots
+          node test/coach-layout.mjs https://localhost:4173/ e2e-shots 1280x800,700x560
       - uses: actions/upload-artifact@v4
         if: always()
         with:

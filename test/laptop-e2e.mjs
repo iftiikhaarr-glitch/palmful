@@ -17,7 +17,7 @@ page.on('console', (m) => m.type() === 'error' && errors.push(m.text()));
 
 const state = () => page.evaluate(() => {
   const p = window.__palmful;
-  return p ? { tracked: p.tracked, phase: p.phase, trail: p.trailVisible, hint: p.hint, ...p.state, m: { ...p.metrics } } : null;
+  return p ? { tracked: p.tracked, phase: p.phase, trail: p.trailVisible, hint: p.hint, coach: p.coach, ...p.state, m: { ...p.metrics } } : null;
 });
 async function waitFor(desc, pred, timeoutS) {
   const end = Date.now() + timeoutS * 1000;
@@ -38,18 +38,32 @@ try {
   await page.waitForSelector('#laptop-start', { timeout: 60000 });
   await page.waitForTimeout(3000);
   await page.click('#laptop-start');
-  await waitFor('before any hand: seed waits, asks for a palm', (s) => s.phase === 'await' && /Hold out your hand/.test(s.hint), 90);
+  await waitFor('before any hand: seed waits; coach step 1 "Hold out your hand" (raise pictogram)', (s) => s.phase === 'await' && s.coach === 'b-raise' && /Hold out your hand/.test(s.hint), 90);
   await page.waitForTimeout(800);
   await page.screenshot({ path: `${shots}/laptop-1-await.png` });
 
   await keys(' '); // raise hand, palm up
   await waitFor('seed lands and hatches -> play', (s) => s.phase === 'play' && s.tracked, 60);
-  await waitFor('idle Mote shows a light trail, no text', (s) => s.trail && s.hint === '', 30);
+  await waitFor('first session: coach step 2 teaches the tilt while the light trail shows the way', (s) => s.trail && s.coach === 'b-tilt', 30);
   await page.screenshot({ path: `${shots}/laptop-2-trail.png` });
+  const tg1 = await page.evaluate(() => window.__palmful.target());
+  const tgPts = await page.evaluate(() => window.__palmful.screenPoints().target);
+  if (!tg1.visible || tg1.finger !== 'middle' || tg1.color !== '#ff8fb1' || tg1.tipDist > 0.0045 || !tgPts) throw new Error('target marker: ' + JSON.stringify({ tg1, tgPts }));
+  log('OK  ', 'target marker: pink flower (the middle flower\'s colour) on the middle fingertip', JSON.stringify(tg1));
+  await keys('F'); // a fist before the end: the coach goes back to step 1
+  await waitFor('fist during play: coach says "Open your hand" (step 1 again, not ticked)', (s) => s.coach === 'b-open' && /Open your hand/.test(s.hint) && s.blooms === 0, 10);
+  await page.screenshot({ path: `${shots}/laptop-2b-fist-open-hand.png` });
+  await keys('F'); // open again
+  await waitFor('hand open again: back to "Tilt gently toward the flower"', (s) => s.coach === 'b-tilt', 10);
 
   await keys('ArrowUp', 7); // 35 deg fingertips down
   await waitFor('bloom 1 (middle)', (s) => s.blooms >= 1, 240);
+  await waitFor('after the first bloom: "1 of 3 in bloom" (the goal)', (s) => s.coach === 'b-goal1', 3);
+  const tg2 = await page.evaluate(() => window.__palmful.target());
+  if (tg2.finger !== 'index' || tg2.color !== '#9ad7ff' || tg2.tipDist > 0.0045) throw new Error('target marker after bloom 1: ' + JSON.stringify(tg2));
+  log('OK  ', 'next target: blue flower on the index fingertip', JSON.stringify(tg2));
   await page.screenshot({ path: `${shots}/laptop-3-bloom1.png` });
+  await waitFor('then the tilt lesson is done: no card while playing', (s) => s.coach === '' && s.hint === '', 6);
 
   await keys(' '); await keys('ArrowDown', 6);
   await waitFor('slid back to palm', (s) => s.place === 'palm', 180);
@@ -63,7 +77,7 @@ try {
   await keys(' '); await keys('ArrowLeft', 6);
   await waitFor('rolled toward pinky side', (s) => s.place === 'palm' && s.a < -0.012, 180);
   await keys('ArrowUp', 7); await keys('ArrowRight', 4);
-  await waitFor('bloom 3 (ring) = session complete', (s) => s.blooms >= 3 && s.m.sessionsCompleted >= 1 && s.phase === 'done', 240);
+  await waitFor('bloom 3 (ring) = session complete; the card shows the fist restart', (s) => s.blooms >= 3 && s.m.sessionsCompleted >= 1 && s.phase === 'done' && s.coach === 'b-done', 240);
   await page.waitForTimeout(1500);
   const layout = await page.evaluate(() => window.__palmful.layout());
   log(layout.panelVisible && layout.overlaps === 0 ? 'OK  ' : 'FAIL', 'completion panel clear of hand, Mote and flowers', JSON.stringify(layout));
@@ -79,6 +93,7 @@ try {
   await waitFor('fist restarts the session (re-hatch)', (s) => s.m.restarts >= 1 && s.blooms === 0, 120);
   await keys('F');
   await waitFor('back to play after re-hatch', (s) => s.phase === 'play', 60);
+  await waitFor('second session: no tutorial, the light trail alone shows the way', (s) => s.trail && s.coach === '', 10);
   await page.screenshot({ path: `${shots}/laptop-5-restarted.png` });
 
   // Inspection camera: the game pauses, the hand keys are ignored, frames keep

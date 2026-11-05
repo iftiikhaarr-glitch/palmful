@@ -1,4 +1,4 @@
-# Palmful: Quest 3 / 3S test (about 15 minutes, 6 of them playing; +2 for optional Part C)
+# Palmful: Quest 3 / 3S test (about 22 minutes: Part 0 with a first-time player, then 15 minutes of measured play; +2 for optional Part C)
 
 Thank you for testing. Palmful is a small, hands-only experience. There are
 two versions, and this test decides which one we keep:
@@ -22,6 +22,51 @@ results so far come from an emulator on a laptop.
    slightly between headset software versions.)
 5. To leave a part, press the Meta button and close the browser tab, then
    open the next address.
+
+## 1b. Part 0: first-time player (do this first; 5–8 minutes)
+
+This part needs **someone who has never seen or read about Palmful**. It tests
+whether the game teaches itself: since 5 Nov the game shows a short visual
+coach (one card at a time, with a small animated hand) for every step. The
+player must **not** read this guide, the checklist or GitHub.
+
+**The facilitator** opens the address, hands over the headset and says only:
+*"This is a game you play with your bare hands. Put the controllers down.
+Pinch Enter AR, then try to play. Please think aloud. I can't help you."*
+After that, the facilitator stays silent for 3 minutes per mode (only safety
+help). Record the whole thing.
+
+1. **Catch first** (it is the harder one to learn):
+   **`https://iftiikhaarr-glitch.github.io/palmful/?catch=1`** (no `&debug`).
+   Let them play until 3/3 or 3 minutes. Then ask only: *"Can you play again?"*
+2. **Then Bloom**: **`https://iftiikhaarr-glitch.github.io/palmful/`**.
+   Same rules: until all three blooms or 3 minutes, then *"Can you play again?"*
+
+The facilitator writes down, for each mode:
+- seconds from Enter AR to the first catch / first bloom, and whether all three
+  were done within 3 minutes;
+- every moment the player hesitated, asked a question or said something wrong
+  about what to do (with the video time);
+- Catch: did they ever **cup before the seed landed**? Did the "Open palm under
+  the seed → Keep it open. Let it land. → Now cup gently" steps make the order
+  clear? Did they notice the card change at each step?
+- did they understand there are **three** to catch / bloom?
+- after *"Can you play again?"*: did they open the hand and then make a fist
+  without help?
+- could they read every card without leaning or turning their head? Did any
+  card cover the seed, the ring, Mote or their hand?
+- their own words afterwards: *"What was confusing?"*
+
+| Check | Pass | Retest after a fix | Fail |
+|---|---|---|---|
+| Finishes a mode without help | both modes within 3 min | one mode within 3 min | neither, or needed verbal help |
+| Catch order (under, land, then cup) | never cups early, or corrects at the "Open your hand" card | cups early more than twice | cannot get a catch |
+| Restart | open hand, then fist, unaided | needs the card twice | cannot restart |
+| Cards | read without effort, never in the way | one card hard to read or in the way | cards unread or blocking play |
+
+A result in the middle or Fail column is an **onboarding** fix (card wording,
+timing or placement), then a retest with another first-time player. On its own
+it is not a reason to drop a mode or to change the game rules.
 
 ## 2. Part A: Bloom (3 minutes)
 
@@ -47,12 +92,13 @@ above the lanes shows "Gold 0/1 · Blue 0/1 · Pink 0/1"; catch one of each.
 **Before raising your hand: opening check (10 s).** After **Enter AR**, stay
 seated and rest both hands comfortably out of the headset's view, for example
 lowered at your sides (no need to hold them behind your back). A seed waits in front of you,
-pulsing, with **"Hold out your hand"** written just under it. For 10 s, look
+pulsing. The instruction card **"Hold out your hand, palm up"** sits above the
+"Gold 0/1 · Blue 0/1 · Pink 0/1" display, away from the seed. For 10 s, look
 normally at the seed, then tip your head slightly downward and keep looking at
-it. Then answer aloud: **does the seed's glow cover the "Hold out your hand"
-text, or make either the seed or the instruction hard to see?** If the text reads "Turn
-your palm up" instead, the headset can see a hand: lower your hands a little further out of view and
-look again.
+it. Then answer aloud: **does the seed's glow touch or cover any instruction or
+progress text, or make either the seed or the text hard to see?** If the card
+reads "Turn your palm up" instead, the headset can see a hand: lower your hands
+a little further out of view and look again.
 
 | Time | Do this |
 |---|---|
@@ -106,9 +152,11 @@ optional either way; one-hand play is never affected.
    - Catch: did moving and cupping **register naturally**? Any catch you did
      not mean to make? Any miss that felt unfair? Could you tell the three
      seeds apart and read the progress display without effort?
-   - Catch opening: does the pulsing seed's glow cover the "Hold out your
-     hand" text, or make either the seed or the instruction hard to see?
+   - Catch opening: does the pulsing seed's glow touch or cover any
+     instruction or progress text, or make the seed or the text hard to see?
      (looking normally / looking slightly downward)
+   - Part 0 (first-time player): the facilitator's notes and the player's own
+     words (see Part 0).
    - Which one would you rather play again, and why?
    - Anything uncomfortable (arm tired, eyes, nausea)?
 
@@ -180,7 +228,7 @@ play otherwise means we change `CUP_ON`, the cup threshold (now 0.42), using the
 recorded numbers, and retest. It is not a reason to drop Catch by itself. Low
 frame rate means simplify, not abandon. Confusion in the first minute means fix
 the onboarding, not the mechanic. If the catch opening's pulsing glow covers
-the "Hold out your hand" text or makes the opening confusing, it is recorded as
+instruction or progress text or makes the opening confusing, it is recorded as
 a usability issue: it needs the smallest fix (hint position or pulse) and a
 retest before the final mode choice. On its own it is not a reason to drop
 Catch.
