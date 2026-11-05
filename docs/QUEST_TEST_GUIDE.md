@@ -165,7 +165,7 @@ Debug panel, Bloom: `fps 72  tracked 98%  palm-up 95%` / `jitter 1.2 mm …` /
 `falling  caught 1  missed 0  spilled 0  cup 0.03`, and a fourth line saying
 which hand Catch is following and why the seed can or cannot land right now,
 for example `RIGHT hand  LAND: cup too high (0.45 >= 0.42)`,
-`LAND: not under the seed`, `LAND: other hand is under it; use right` or
+`LAND: not under the seed`, `LAND: other hand under it, use right` or
 `LAND: ok, landing`. The ring under the seed turns green only when the game
 would accept the hand.
 

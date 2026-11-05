@@ -2047,7 +2047,7 @@ export class PalmfulSystem extends createSystem({}) {
     const L = this.landing;
     const hand = `${(this.selectedHand() ?? 'no').toUpperCase()} hand`;
     if (cst.seed !== 'waiting' && cst.seed !== 'falling') return `${hand}  ${cst.seed}`;
-    if (this.wrongHand) return `${hand}  LAND: other hand is under it; use ${this.selectedHand()}`;
+    if (this.wrongHand) return `${hand}  LAND: other hand under it, use ${this.selectedHand()}`;
     const why: Record<LandBlock, string> = {
       'no-hand': 'hand not tracked',
       'palm-not-up': `palm not up (${this.frame.normal.y.toFixed(2)} < ${PALM_UP_MIN})`,
@@ -2124,11 +2124,22 @@ export class PalmfulSystem extends createSystem({}) {
       c.beginPath();
       c.roundRect(8, COACH_H + 4, cv.width - 16, cv.height - COACH_H - 12, 32);
       c.fill();
-      c.font = '32px ui-monospace, monospace';
-      c.fillStyle = '#b8f0c8';
       c.textAlign = 'center';
       c.textBaseline = 'middle';
-      dbg.forEach((line, i) => c.fillText(line, cv.width / 2, COACH_H + 48 + i * 52));
+      dbg.forEach((line, i) => {
+        // Catch's landing line (4th): bold, amber while the seed cannot land,
+        // green when it can, so it reads at headset distance. Every line
+        // shrinks to fit the panel whatever the system font.
+        const land = i === 3;
+        const blocked = land && !/LAND: ok/.test(line) && /LAND:/.test(line);
+        let size = 32;
+        do {
+          c.font = `${land ? '700 ' : ''}${size}px ui-monospace, monospace`;
+          size -= 2;
+        } while (size >= 22 && c.measureText(line).width > cv.width - 72);
+        c.fillStyle = land ? (blocked ? '#ffc061' : '#7cf29a') : '#b8f0c8';
+        c.fillText(line, cv.width / 2, COACH_H + 48 + i * 52);
+      });
     }
     this.hintTex.needsUpdate = true;
   }
