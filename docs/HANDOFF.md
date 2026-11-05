@@ -1,4 +1,4 @@
-# Handoff: in-game coach is live; waiting for Aaron's Quest recordings (5 Nov 2026)
+# Handoff: in-game coach and Catch landing feedback are live (5 Nov 2026)
 
 ## Where the work is
 
@@ -10,14 +10,32 @@
   bloom/catch/two-hand/landing sessions, contrast, and coach layout at
   1280×800 and 700×560) before deploying:
   https://github.com/iftiikhaarr-glitch/palmful/actions/runs/41978952075
+- **PR #14 merged into `main` as `2d5d0ac`, and Pages run #15 deployed it
+  successfully:** https://github.com/iftiikhaarr-glitch/palmful/pull/14,
+  https://github.com/iftiikhaarr-glitch/palmful/actions/runs/42010788917
+  - **Ring:** the Catch landing ring now turns green only when the selected
+    hand can actually receive the seed (tracked, palm up, cup reading below
+    0.42, under the seed). It uses the game's own landing check, so the two
+    cannot disagree.
+  - **Threshold:** the cup threshold is still **0.42**. Catch tolerance and
+    every Catch rule are unchanged.
+  - **`&debug=1`:** a line shows the selected hand and why the seed can or
+    cannot land, for example `RIGHT hand  LAND: cup too high (0.45 >= 0.42)`.
 - **Live now** (nothing is awaiting merge):
   - Bloom: https://iftiikhaarr-glitch.github.io/palmful/
   - Catch: https://iftiikhaarr-glitch.github.io/palmful/?catch=1
 - **Handoff updates:** docs-only PR #13
   (https://github.com/iftiikhaarr-glitch/palmful/pull/13).
 - **Devpost:** unchanged.
-- **Aaron's recordings:** not received. As of 5 Nov there is no file in the
-  cloud session and no new GitHub issue, branch or upload.
+- **Aaron's recordings:** received 5 Nov and reviewed privately. They are
+  **not** in this repository and must not be used publicly. Both were recorded
+  on the build *before* the coach. What they showed:
+  - Bloom worked: `fps 90`, palm-up 97 %.
+  - Catch got 0 catches and 3 misses. His visibly open hand read
+    `cup 0.42–0.46`, so landings were refused while the ring showed green; PR
+    #14 fixes the ring.
+  - Whether the threshold should change waits for his optional `cup`
+    screenshots (flat, relaxed and gently cupped hand).
 - **Branches to keep:**
   - `hold/catch-opening-settled-check` (stricter contrast test; never merge as is);
   - `draft/submission` (Devpost draft, `docs/SUBMISSION_DRAFT.md`);
@@ -128,7 +146,7 @@ frame rate.
 6. **Does the coach work?** A new first-time player (Part 0 of the guide) must
    finish both modes without help.
 
-## Exact next steps when the videos arrive
+## Steps for any further recordings
 
 1. Save them in a new, empty folder outside the repo; do not commit them. Note
    the device (Quest 3 or 3S), the lighting, the URLs used and whether
