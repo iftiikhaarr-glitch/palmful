@@ -43,18 +43,19 @@ buttons, controllers or fail states.
 - **Hold Mote on the fingertip for a moment:** it blooms.
 - **After three blooms, close your hand into a fist for about a second:** the
   garden resets and Mote hatches again.
-- **Hand out of view:** Mote waits in place and carries on when the hand
-  returns. After a few seconds it moves to your other hand if you hold that one
-  palm up.
+- **Hand out of view:** Mote waits, frozen and dimmed, where it was. If that
+  hand returns, it carries on. If the hand stays away for three seconds while
+  your other hand is held palm up, Mote moves to that hand and starts again from
+  the palm, keeping its blooms.
 - **Palm turned down:** Mote clings on, and the game asks you to turn your palm
   up.
 
 On the first session, a guide shows one step at a time with a small animated
-hand, away from the seed and your hand.
+hand.
 
 **Why passthrough.** The stage is your real hand. Mote sits on your own palm
-and the flowers grow from your own fingertips. Palmful does not use the room
-around you; the hand is the point.
+and the flowers grow from your own fingertips. It does not use the room; the
+hand is the point.
 
 **How we built it.** Meta's Immersive Web SDK (WebXR) with three.js, in
 TypeScript, hosted on GitHub Pages: it opens from a link in the Quest Browser
@@ -118,6 +119,14 @@ out in editing.
 - the caption is in every frame;
 - the video description says once that it shows the laptop emulator, with a
   keyboard-simulated hand, not a headset.
+
+**Produced on 5 Nov (not stored in this repository):**
+- `palmful-demo-emulator.mp4`: 1:31, 1920×1080, 30 fps, with a silent audio
+  track. It's real emulator gameplay recorded at 1280×720 (about 19 fps in the
+  cloud's software renderer), upscaled, with the caption on every frame.
+- Three gallery PNGs.
+- A zip with the raw frames and the scripts used to rebuild it, which was sent
+  to the owner. Recording again on a laptop with a GPU gives smoother footage.
 
 ## 4. Gallery screenshots (current build, laptop emulator)
 
