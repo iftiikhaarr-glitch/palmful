@@ -18,7 +18,8 @@ a time shows the next action in a few plain words, with a small animated hand:
 
 - **Bloom:** ① *Hold out your hand* (open, palm up, under the seed) →
   ② *Tilt gently toward the light* (Mote slides to the glowing fingertip) →
-  "1 of 3 in bloom" → at the end, *make a fist to play again*.
+  "1 of 3 in bloom" → at the end, *make a fist to play again*. Closing the
+  hand (a fist or a cup) before the end brings back step 1, *Open your hand*.
 - **Catch:** a three-step strip, **① Under → ② Land → ③ Cup**: *Open palm under
   the seed* → *Keep it open. Let it land.* (once the ring is green) → *Now cup
   gently* (green, only after the seed has landed). Then "1 of 3 caught · next:

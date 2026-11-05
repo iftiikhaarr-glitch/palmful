@@ -36,6 +36,19 @@
 - **Unchanged:** game rules, thresholds (`CUP_ON` 0.42, landing, fall speed,
   lanes, restart arming), the Quest camera and both modes.
 
+## Fixed after the user's preview review (5 Nov 2026)
+
+- **Bloom, fist before the end:** the coach kept saying "Tilt gently toward the
+  light" with "Open palm" ticked while the hand was a fist. Now any closed hand
+  (the game's own fist or cup measure, thresholds unchanged) before the end
+  shows step 1 again, *Open your hand*, unticked. `laptop-e2e` checks F → *Open
+  your hand* → F → *Tilt gently toward the light*.
+- **Target fingertip vs Mote (checked, not changed):** while Mote slides it
+  turns pale yellow (`#ffd27a`), and on arrival `#fff3b0`, almost the same
+  colour as the target light (`#fff6c2`). They differ mainly by size, and the
+  light floats just above the fingertip. A colour change for the light is
+  proposed in the PR, not made, pending the user's decision.
+
 ## Test results (5 Nov 2026, local production build, headless Chromium)
 
 | Test | Result |

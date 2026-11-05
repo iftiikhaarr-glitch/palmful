@@ -46,6 +46,11 @@ try {
   await waitFor('seed lands and hatches -> play', (s) => s.phase === 'play' && s.tracked, 60);
   await waitFor('first session: coach step 2 teaches the tilt while the light trail shows the way', (s) => s.trail && s.coach === 'b-tilt', 30);
   await page.screenshot({ path: `${shots}/laptop-2-trail.png` });
+  await keys('F'); // a fist before the end: the coach goes back to step 1
+  await waitFor('fist during play: coach says "Open your hand" (step 1 again, not ticked)', (s) => s.coach === 'b-open' && /Open your hand/.test(s.hint) && s.blooms === 0, 10);
+  await page.screenshot({ path: `${shots}/laptop-2b-fist-open-hand.png` });
+  await keys('F'); // open again
+  await waitFor('hand open again: back to "Tilt gently toward the light"', (s) => s.coach === 'b-tilt', 10);
 
   await keys('ArrowUp', 7); // 35 deg fingertips down
   await waitFor('bloom 1 (middle)', (s) => s.blooms >= 1, 240);

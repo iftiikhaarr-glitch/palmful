@@ -1770,6 +1770,10 @@ export class PalmfulSystem extends createSystem({}) {
         : { id: 'b-raise', title: 'Hold out your hand', sub: 'open, palm up, under the seed', icon: 'raise', tone: 'go', steps: steps(0), seed: '#c98b4a' };
     }
     if (!this.tracked) return { id: 'back', title: 'Bring your hand back', sub: '', icon: 'back', tone: 'warn' };
+    // A closed hand (fist or cup) before the end: back to step 1. Display
+    // only: the game's own fist and cup measures and thresholds, unchanged.
+    if (this.phase !== 'done' && (fingertipReach(this.joints) < FIST_REACH || cupAmount(this.joints, this.frame) >= CUP_ON))
+      return { id: 'b-open', title: 'Open your hand', sub: 'palm flat and up, so Mote can walk', icon: 'open', tone: 'warn', steps: steps(0) };
     if (this.phase === 'arrive' || this.phase === 'hatch')
       return first ? { id: 'b-land', title: 'Keep your palm open', sub: 'the seed is landing', icon: 'land', tone: 'wait', steps: steps(0), seed: '#c98b4a' } : null;
     const petals = FINGERS.map((f) => PETAL_COLORS[f]);
