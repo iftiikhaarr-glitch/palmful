@@ -13,10 +13,10 @@
 
 ## Preview links (laptop emulator)
 
-- Built from `6318b8d`, the same game code as the PR.
-- Served from branch `preview-coach`, commit `49b3d00`.
-- Bloom: https://raw.githack.com/iftiikhaarr-glitch/palmful/49b3d0062ed37aac8ef117bd82934548be1bd52f/index.html?emulate=1
-- Catch: https://raw.githack.com/iftiikhaarr-glitch/palmful/49b3d0062ed37aac8ef117bd82934548be1bd52f/index.html?emulate=1&catch=1
+- Built from `3f9d501`, the same game code as the PR.
+- Served from branch `preview-coach`, commit `2fdb7ce`.
+- Bloom: https://raw.githack.com/iftiikhaarr-glitch/palmful/2fdb7cef36ab9fdbc83c57ee4bb2e86ad70b014d/index.html?emulate=1
+- Catch: https://raw.githack.com/iftiikhaarr-glitch/palmful/2fdb7cef36ab9fdbc83c57ee4bb2e86ad70b014d/index.html?emulate=1&catch=1
 - On a Quest: the same URLs without `emulate=1`. **Not yet opened on a headset.**
 - Screenshots: [`evidence/laptop-coach-steps.jpg`](evidence/laptop-coach-steps.jpg).
 
