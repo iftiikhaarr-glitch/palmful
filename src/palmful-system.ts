@@ -59,6 +59,7 @@ import {
   CUP_HOLD,
   CUP_ON,
   laneSpawn,
+  nextKind,
   MISSED_S,
   makeCatch,
   PALM_UP_MIN,
@@ -71,6 +72,7 @@ import {
 } from './palm/catch-sim.js';
 import { type Vec3, v3 } from './palm/math.js';
 import { addSeeThrough, HandSilhouette } from './hand-silhouette.js';
+import { COACH_H, COACH_W, type CoachMsg, drawCoachCard, drawCoachIcon, ICON_BOX, ICON_PX } from './coach.js';
 import { chooseHand, type Engagement, type HandView, makeEngagement, type Side } from './palm/two-hand.js';
 
 const PARAMS = new URLSearchParams(location.search);
@@ -138,6 +140,9 @@ const BONES: Array<[number, number]> = [
 /** Catch mode: seed colours, labels, and which fingertip each one blooms. */
 const SEED_COLOR: Record<SeedKind, string> = { gold: '#ffc83d', blue: '#4fb4ff', pink: '#ff6fc2' };
 const SEED_LABEL: Record<SeedKind, string> = { gold: 'Gold', blue: 'Blue', pink: 'Pink' };
+const SEED_SIDE: Record<SeedKind, string> = { gold: 'on your left', blue: 'on your right', pink: 'in the middle' };
+/** Coach card width (m). */
+const CARD_W = 0.18;
 const FLOWER_FOR_SEED: Record<SeedKind, FingerName> = { gold: 'middle', blue: 'index', pink: 'ring' };
 /** Extra bones for the laptop's full skeleton: pinky and thumb (indices 14-20). */
 const EXTRA_BONES: Array<[number, number]> = [
@@ -208,6 +213,8 @@ declare global {
       palmCenter: Vec3;
       trailVisible: boolean;
       hint: string;
+      /** id of the coach step on screen ('' = none) */
+      coach: string;
       layout: () => LayoutReport;
       /** true only in the laptop emulator: a dark room is drawn into the XR view */
       hasBackdrop: boolean;
@@ -329,6 +336,19 @@ export class PalmfulSystem extends createSystem({}) {
   private head = new Vector3();
   private audio: AudioContext | null = null;
   private hintTimer = 0;
+  // coach (the hint card's pictogram and step state)
+  private coachIcon!: Mesh;
+  private iconCanvas!: HTMLCanvasElement;
+  private iconTex!: CanvasTexture;
+  private coachId = '';
+  private coachFlash = 0;
+  private iconTimer = 0;
+  private iconT = 0;
+  private coachPlaced = false;
+  private coachTarget = new Vector3();
+  private ringReady = false; // catch: an open palm is under the seed (the ring is green)
+  private goalT = 0; // seconds left to show "1 of 3" after a catch or bloom
+  private lastCount = 0;
   private fistT = 0;
   private metrics: PalmfulMetrics = {
     frames: 0,
@@ -448,6 +468,7 @@ export class PalmfulSystem extends createSystem({}) {
       palmCenter: this.frame.center,
       trailVisible: false,
       hint: '',
+      coach: '',
       layout: () => this.layoutCheck(),
       hasBackdrop: this.root.getObjectByName('emulator-backdrop') !== undefined,
       handSize: () => this.handSize,
@@ -535,17 +556,34 @@ export class PalmfulSystem extends createSystem({}) {
   }
 
   private buildHint(): void {
+    // The coach card: one action at a time, words on the right, an animated
+    // pictogram on the left (its own small canvas, so only it is redrawn
+    // while it animates). With &debug=1 the metrics are drawn below.
     this.hintCanvas = document.createElement('canvas');
-    this.hintCanvas.width = 1024;
-    this.hintCanvas.height = DEBUG ? 420 : 240;
+    this.hintCanvas.width = COACH_W;
+    this.hintCanvas.height = DEBUG ? COACH_H + 190 : COACH_H;
     this.hintTex = new CanvasTexture(this.hintCanvas);
-    const aspect = this.hintCanvas.height / this.hintCanvas.width;
+    const w = CARD_W;
+    const h = w * (this.hintCanvas.height / this.hintCanvas.width);
     this.hint = new Mesh(
-      new PlaneGeometry(0.16, 0.16 * aspect),
+      new PlaneGeometry(w, h),
       new MeshBasicMaterial({ map: this.hintTex, transparent: true, depthTest: false, side: DoubleSide }),
     );
     this.hint.renderOrder = 30; // above the laptop hand silhouette (20-21)
     this.root.add(this.hint);
+    this.iconCanvas = document.createElement('canvas');
+    this.iconCanvas.width = this.iconCanvas.height = ICON_PX;
+    this.iconTex = new CanvasTexture(this.iconCanvas);
+    const px = w / COACH_W; // metres per card pixel
+    const side = (COACH_H - 70) * px;
+    this.coachIcon = new Mesh(
+      new PlaneGeometry(side, side),
+      new MeshBasicMaterial({ map: this.iconTex, transparent: true, depthTest: false, side: DoubleSide }),
+    );
+    this.coachIcon.renderOrder = 31;
+    // centred in the card's left square, which sits in the card's top COACH_H rows
+    this.coachIcon.position.set(-w / 2 + ((ICON_BOX + 30) / 2) * px, h / 2 - (COACH_H / 2) * px, 0.0005);
+    this.hint.add(this.coachIcon);
   }
 
   private petalColor(f: FingerName): string {
@@ -1514,15 +1552,16 @@ export class PalmfulSystem extends createSystem({}) {
     const r = this.ring;
     const showRing = this.phase !== 'done' && (cst.seed === 'falling' || cst.seed === 'waiting');
     r.visible = showRing || this.flash !== null;
+    this.ringReady = false;
     if (showRing) {
       const y = this.tracked ? this.frame.center.y : cst.pos.y - 0.25;
       this.ringY = y;
       r.position.set(cst.pos.x, y, cst.pos.z);
       r.scale.setScalar(this.radius);
-      const ready =
+      const ready = (this.ringReady =
         this.tracked &&
         this.frame.normal.y >= PALM_UP_MIN &&
-        Math.hypot(cst.pos.x - this.frame.center.x, cst.pos.z - this.frame.center.z) <= this.radius;
+        Math.hypot(cst.pos.x - this.frame.center.x, cst.pos.z - this.frame.center.z) <= this.radius);
       this.ringMat.color.set(ready ? CUE.ready : CUE.waiting);
       this.ringMat.opacity = ready ? 1 : 0.85;
     }
@@ -1714,72 +1753,143 @@ export class PalmfulSystem extends createSystem({}) {
     }
   }
 
-  /** The few words the game ever shows; null = no panel (most of play). */
-  private hintFor(): { title: string; sub: string } | null {
+  /**
+   * The coach: what the player should do next, one action at a time, with an
+   * animated pictogram. The first session teaches every step; after a
+   * restart only the reminders remain (the player has done it once).
+   * null = no card (most of play).
+   */
+  private hintFor(): CoachMsg | null {
     if (MODE === 'catch') return this.catchHint();
     const st = this.st;
+    const first = this.metrics.restarts === 0;
+    const steps = (at: number) => (first ? { labels: ['Open palm', 'Tilt'], at } : undefined);
     if (this.phase === 'await') {
       return this.tracked
-        ? { title: 'Turn your palm up', sub: '' }
-        : { title: 'Hold out your hand', sub: 'palm up' };
+        ? { id: 'b-palmup', title: 'Turn your palm up', sub: '', icon: 'palmUp', tone: 'go', steps: steps(0), seed: '#c98b4a' }
+        : { id: 'b-raise', title: 'Hold out your hand', sub: 'open, palm up, under the seed', icon: 'raise', tone: 'go', steps: steps(0), seed: '#c98b4a' };
     }
-    if (!this.tracked) return { title: 'Bring your hand back', sub: '' };
-    if (this.phase === 'arrive' || this.phase === 'hatch') return null;
+    if (!this.tracked) return { id: 'back', title: 'Bring your hand back', sub: '', icon: 'back', tone: 'warn' };
+    if (this.phase === 'arrive' || this.phase === 'hatch')
+      return first ? { id: 'b-land', title: 'Keep your palm open', sub: 'the seed is landing', icon: 'land', tone: 'wait', steps: steps(0), seed: '#c98b4a' } : null;
+    const petals = FINGERS.map((f) => PETAL_COLORS[f]);
     if (this.phase === 'done') {
       return this.fistT > 0
-        ? { title: 'Hold it…', sub: '' }
-        : { title: 'All three in bloom', sub: 'make a fist to play again' };
+        ? { id: 'b-hold', title: 'Hold it…', sub: '', icon: 'fist', tone: 'now', dots: { colors: petals, filled: 3 } }
+        : { id: 'b-done', title: 'All three in bloom', sub: 'make a fist to play again', icon: 'fist', tone: 'done', dots: { colors: petals, filled: 3 } };
     }
-    if (st.mood === 'cling') return { title: 'Turn your palm up', sub: '' };
-    // Wordless by default: the light trail shows where to go. Only if the
-    // player has not tipped their hand after a while do we say so.
+    if (st.mood === 'cling') return { id: 'b-palmup2', title: 'Turn your palm up', sub: '', icon: 'palmUp', tone: 'warn' };
+    if (this.goalT > 0 && st.blooms < 3)
+      return { id: `b-goal${st.blooms}`, title: `${st.blooms} of 3 in bloom`, sub: 'follow the light to the next fingertip', icon: 'tilt', tone: 'done', dots: { colors: petals, filled: st.blooms } };
+    // First session: teach the tilt until the first bloom. Later sessions:
+    // wordless (the light trail shows the way) unless the player has not
+    // tipped their hand for a while.
+    if (first && st.blooms === 0)
+      return { id: 'b-tilt', title: 'Tilt gently toward the light', sub: 'Mote slides to the glowing fingertip', icon: 'tilt', tone: 'go', steps: steps(1) };
     if (st.blooms === 0 && this.metrics.firstSlideS === null && this.phaseT > 8 && this.idleT > 4)
-      return { title: 'Tip your hand', sub: 'toward the light' };
+      return { id: 'b-tilt2', title: 'Tilt gently toward the light', sub: '', icon: 'tilt', tone: 'go' };
     return null;
   }
 
-  private catchHint(): { title: string; sub: string } | null {
+  private catchHint(): CoachMsg | null {
     const cst = this.cst;
+    const first = this.metrics.restarts === 0;
+    const labels = ['Under', 'Land', 'Cup'] as const;
+    const color = cst ? SEED_COLOR[cst.kind] : SEED_COLOR.gold;
+    const seeds = SEED_KINDS.map((k) => SEED_COLOR[k]);
     if (this.phase === 'await' || !cst) {
       return this.tracked
-        ? { title: 'Turn your palm up', sub: '' }
-        : { title: 'Hold out your hand', sub: 'palm up, under the seed' };
+        ? { id: 'c-palmup', title: 'Turn your palm up', sub: '', icon: 'palmUp', tone: 'go', seed: color }
+        : { id: 'c-raise', title: 'Hold out your hand, palm up', sub: 'catch 3 seeds: gold, blue and pink', icon: 'raise', tone: 'go', seed: color, dots: first ? { colors: seeds, filled: 0 } : undefined };
     }
-    if (this.phase === 'done') return null; // the progress display becomes the completion card
-    if (!this.tracked) return { title: TWO_HANDS && this.eng.side ? `Bring your ${this.eng.side} hand back` : 'Bring your hand back', sub: '' };
+    if (this.phase === 'done') {
+      if (this.fistT > 0) return { id: 'c-hold', title: 'Hold it…', sub: '', icon: 'fist', tone: 'now' };
+      return this.restartArmed
+        ? { id: 'c-fist', title: 'Now make a fist', sub: 'to play again', icon: 'fist', tone: 'now', steps: { labels: ['Open', 'Fist'], at: 1 } }
+        : { id: 'c-open', title: 'Open your hand', sub: 'then make a fist to play again', icon: 'open', tone: 'go', steps: { labels: ['Open', 'Fist'], at: 0 } };
+    }
+    if (!this.tracked)
+      return { id: 'back', title: TWO_HANDS && this.eng.side ? `Bring your ${this.eng.side} hand back` : 'Bring your hand back', sub: '', icon: 'back', tone: 'warn' };
+    // the first seed is taught step by step; later seeds only get reminders
+    const teach = first && cst.catches === 0;
+    const steps = (at: number) => (teach ? { labels, at } : undefined);
     switch (cst.seed) {
       case 'caught':
-        return null; // progress display updates instead
-      case 'missed':
-        return { title: 'Missed', sub: `the ${SEED_LABEL[cst.kind].toLowerCase()} seed will come back` };
-      case 'resting':
-        return cst.restT > 1.5 && cst.cupT === 0 ? { title: 'Gently cup your hand', sub: '' } : null;
-      default:
-        if (this.frame.normal.y < PALM_UP_MIN && this.phaseT > 1) return { title: 'Turn your palm up', sub: '' };
-        if (this.cup >= CUP_ON) return { title: 'Open your hand', sub: 'to receive the seed' };
+      case 'done':
+        if (cst.catches > 0 && cst.catches < CATCHES_TO_WIN && (first || this.goalT > 0)) {
+          const next = nextKind(cst);
+          return { id: `c-goal${cst.catches}`, title: `${cst.catches} of 3 caught`, sub: next ? `next: ${SEED_LABEL[next].toLowerCase()}, ${SEED_SIDE[next]}` : '', icon: 'none', tone: 'done', dots: { colors: seeds, filled: cst.catches } };
+        }
         return null;
+      case 'missed':
+        return { id: 'c-missed', title: 'Missed', sub: `the ${SEED_LABEL[cst.kind].toLowerCase()} seed will come back`, icon: 'none', tone: 'warn' };
+      case 'resting':
+        if (teach || (cst.restT > 1.5 && cst.cupT === 0))
+          return { id: 'c-cup', title: 'Now cup gently', sub: 'to catch it', icon: 'cup', tone: 'now', steps: steps(2), seed: color };
+        return null;
+      default: {
+        if (this.goalT > 0 && cst.seed === 'waiting' && cst.catches > 0) {
+          const k = cst.kind;
+          return { id: `c-goal${cst.catches}`, title: `${cst.catches} of 3 caught`, sub: `next: ${SEED_LABEL[k].toLowerCase()}, ${SEED_SIDE[k]}`, icon: 'none', tone: 'done', dots: { colors: seeds, filled: cst.catches } };
+        }
+        if (this.frame.normal.y < PALM_UP_MIN && this.phaseT > 1)
+          return { id: 'c-palmup2', title: 'Turn your palm up', sub: '', icon: 'palmUp', tone: 'warn', steps: steps(0), seed: color };
+        if (this.cup >= CUP_ON)
+          return { id: 'c-reopen', title: 'Open your hand', sub: 'cup only after it lands', icon: 'open', tone: 'warn', steps: steps(this.ringReady ? 1 : 0) };
+        if (this.ringReady)
+          return teach ? { id: 'c-land', title: 'Keep it open. Let it land.', sub: 'don’t cup yet', icon: 'land', tone: 'wait', steps: steps(1), seed: color } : null;
+        const fallen = cst.spawn.y - cst.pos.y;
+        if (teach || fallen > 0.1)
+          return { id: 'c-under', title: 'Open palm under the seed', sub: '', icon: 'under', tone: 'go', steps: steps(0), seed: color };
+        return null;
+      }
     }
   }
 
-  private placePanel(): void {
-    // Above and slightly beyond the hand (away from the eyes), so from the
-    // player's view it sits above the hand rather than across it.
+  /**
+   * Where the coach card goes, always clear of the seed and the hand:
+   * - catch: stacked above the progress display (words, progress, seeds,
+   *   hand, top to bottom), so it never covers a seed lane or the palm;
+   * - bloom, before the hand: just above the floating seed;
+   * - bloom, during play: ahead at a comfortable height (about 8° below the
+   *   horizon at 45 cm), lifted above the hand if the hand is held higher,
+   *   eased so it never jumps.
+   */
+  private placePanel(dt: number): void {
     this.player.head.getWorldPosition(this.head);
     this.root.worldToLocal(this.head);
-    if (this.tracked && this.phase !== 'await') {
-      this.placeAboveHandInView();
+    const hh = (this.hint.geometry as PlaneGeometry).parameters.height / 2;
+    let snap = !this.coachPlaced;
+    if (MODE === 'catch' && this.hud) {
+      const hudH = (this.hud.geometry as PlaneGeometry).parameters.height / 2;
+      this.coachTarget.set(this.hudPos.x, this.hudPos.y + hudH + 0.012 + hh, this.hudPos.z);
+      snap = true; // the progress display only moves with a new seed
     } else if (this.phase === 'await') {
-      // just under the floating seed
-      const sp = MODE === 'catch' && this.catchSeed ? this.catchSeed.position : this.seed.position;
-      this.hint.position.set(sp.x, sp.y - 0.045, sp.z);
+      this.player.head.updateMatrixWorld();
+      const e = this.player.head.matrixWorld.elements;
+      const ul = Math.hypot(e[4], e[5], e[6]) || 1;
+      const sp = this.seed.position;
+      const lift = 0.03 + hh; // seed top (with its bob) is ~1.6 cm above its centre
+      this.coachTarget.set(sp.x + (e[4] / ul) * lift, sp.y + (e[5] / ul) * lift, sp.z + (e[6] / ul) * lift);
+      snap = true; // the seed follows the view; so does the card above it
     } else {
-      this.player.head.getWorldDirection(this.tmp);
-      this.hint.position.set(
-        this.head.x - this.tmp.x * 0.45,
-        this.head.y - this.tmp.y * 0.45 - 0.08,
-        this.head.z - this.tmp.z * 0.45,
-      );
+      this.player.head.getWorldDirection(this.tmp); // backwards
+      let fx = -this.tmp.x, fz = -this.tmp.z;
+      const fl = Math.hypot(fx, fz) || 1;
+      fx /= fl; fz /= fl;
+      const slotX = this.head.x + fx * 0.45, slotY = this.head.y - 0.06, slotZ = this.head.z + fz * 0.45;
+      let best = false;
+      if (this.tracked) {
+        this.placeAboveHandInView(); // writes coachTarget
+        const t = this.coachTarget;
+        const dh = Math.hypot(t.x - this.head.x, t.z - this.head.z) || 1;
+        best = (t.y - this.head.y) / dh > (slotY - this.head.y) / 0.45;
+      }
+      if (!best) this.coachTarget.set(slotX, slotY, slotZ);
     }
+    const k = snap ? 1 : 1 - Math.exp(-dt * 6);
+    this.hint.position.lerp(this.coachTarget, k);
+    this.coachPlaced = true;
     this.hint.lookAt(this.head);
   }
 
@@ -1832,68 +1942,77 @@ export class PalmfulSystem extends createSystem({}) {
     px /= pl; py /= pl; pz /= pl;
     const half = (this.hint.geometry as PlaneGeometry).parameters.height / 2;
     const lift = half + 0.02;
-    this.hint.position.set(ax + px * lift, ay + py * lift, az + pz * lift);
+    this.coachTarget.set(ax + px * lift, ay + py * lift, az + pz * lift);
   }
 
   private renderHint(delta: number): void {
+    // "1 of 3" after each catch or bloom, for a moment
+    const count = MODE === 'catch' ? (this.cst?.catches ?? 0) : this.st.blooms;
+    if (count > this.lastCount) this.goalT = 2.5;
+    this.lastCount = count;
+    this.goalT = Math.max(0, this.goalT - delta);
+
     const msg = this.hintFor();
     this.hintVisible = DEBUG || msg !== null;
     this.hint.visible = this.hintVisible;
+    this.coachIcon.visible = !!msg && msg.icon !== 'none';
     window.__palmful!.hint = msg ? `${msg.title}${msg.sub ? ' / ' + msg.sub : ''}` : '';
-    if (!this.hintVisible) return;
-    this.placePanel();
+    window.__palmful!.coach = msg?.id ?? '';
+    if (!this.hintVisible) {
+      this.coachId = '';
+      this.coachPlaced = false;
+      return;
+    }
+    this.placePanel(delta);
 
-    const title = msg?.title ?? '';
-    const sub = msg?.sub ?? '';
-    // Redraw at once when the message changes; debug numbers 4x per second.
-    const changed = this.hintTitle.slice(0, title.length + sub.length) !== title + sub;
+    const id = msg?.id ?? '';
+    const changed = id !== this.coachId;
+    if (changed) {
+      this.coachId = id;
+      this.coachFlash = id ? 1 : 0; // a new step flashes the card's border
+      this.iconT = 0;
+      this.iconTimer = 0;
+    }
+    // pictogram: its own small canvas, redrawn about 20 times a second
+    this.iconT += delta;
+    this.iconTimer -= delta;
+    if (msg && msg.icon !== 'none' && this.iconTimer <= 0) {
+      this.iconTimer = 0.05;
+      drawCoachIcon(this.iconCanvas.getContext('2d')!, msg.icon, this.iconT, msg.seed);
+      this.iconTex.needsUpdate = true;
+    }
+    // card: on a change, while its border flash fades, and debug numbers 4x a second
+    const fading = this.coachFlash > 0;
+    this.coachFlash = Math.max(0, this.coachFlash - delta * 1.6);
     this.hintTimer -= delta;
-    if (this.hintTimer > 0 && !changed) return;
+    if (!changed && !fading && !(DEBUG && this.hintTimer <= 0)) return;
     this.hintTimer = 0.25;
     const m = this.metrics;
-    const dbg = DEBUG
-      ? [
-          `fps ${m.fps.toFixed(0)}  tracked ${((100 * m.trackedFrames) / Math.max(1, m.xrFrames)).toFixed(0)}%  palm-up ${((100 * m.palmUpFrames) / Math.max(1, m.trackedFrames)).toFixed(0)}%`,
-          `jitter ${m.jitterRmsMm.toFixed(1)} mm  losses ${m.lossEvents}  longest ${m.longestLossMs.toFixed(0)} ms`,
-          MODE === 'catch' && this.cst
-            ? `${this.cst.seed}  caught ${this.cst.catches}  missed ${this.cst.misses}  spilled ${this.cst.spills}  cup ${this.cup.toFixed(2)}`
-            : `${this.phase}  ${this.st.place}  ${this.st.mood}  blooms ${this.st.blooms}  1st bloom ${m.firstBloomS?.toFixed(1) ?? '-'} s`,
-        ].join('\n')
-      : '';
-    const key = title + sub + dbg + this.st.blooms;
-    if (key === this.hintTitle) return;
-    this.hintTitle = key;
-
     const cv = this.hintCanvas;
     const c = cv.getContext('2d')!;
-    c.clearRect(0, 0, cv.width, cv.height);
-    c.fillStyle = 'rgba(20,16,28,0.78)';
-    c.beginPath();
-    c.roundRect(8, 8, cv.width - 16, cv.height - 16, 48);
-    c.fill();
-    c.textAlign = 'center';
-    c.fillStyle = '#fff4e0';
-    fitFont(c, title, cv.width - 96, '600', 72, 28);
-    const done = this.phase === 'done';
-    c.fillText(title, cv.width / 2, sub || done ? 92 : 112);
-    if (done) {
-      // three dots in the petal colours: the visible result, no words needed
-      FINGERS.forEach((f, i) => {
-        c.fillStyle = PETAL_COLORS[f];
-        c.beginPath();
-        c.arc(cv.width / 2 + (i - 1) * 56, 136, 16, 0, Math.PI * 2);
-        c.fill();
-      });
-    }
-    if (sub) {
-      c.fillStyle = '#d8cbb8';
-      fitFont(c, sub, cv.width - 96, '400', 54, 28);
-      c.fillText(sub, cv.width / 2, done ? 206 : 160);
+    if (msg) {
+      drawCoachCard(c, msg, this.coachFlash, fitFont);
+    } else {
+      c.clearRect(0, 0, cv.width, cv.height);
     }
     if (DEBUG) {
+      const dbg = [
+        `fps ${m.fps.toFixed(0)}  tracked ${((100 * m.trackedFrames) / Math.max(1, m.xrFrames)).toFixed(0)}%  palm-up ${((100 * m.palmUpFrames) / Math.max(1, m.trackedFrames)).toFixed(0)}%`,
+        `jitter ${m.jitterRmsMm.toFixed(1)} mm  losses ${m.lossEvents}  longest ${m.longestLossMs.toFixed(0)} ms`,
+        MODE === 'catch' && this.cst
+          ? `${this.cst.seed}  caught ${this.cst.catches}  missed ${this.cst.misses}  spilled ${this.cst.spills}  cup ${this.cup.toFixed(2)}`
+          : `${this.phase}  ${this.st.place}  ${this.st.mood}  blooms ${this.st.blooms}  1st bloom ${m.firstBloomS?.toFixed(1) ?? '-'} s`,
+      ];
+      c.clearRect(0, COACH_H, cv.width, cv.height - COACH_H);
+      c.fillStyle = 'rgba(20,16,28,0.85)';
+      c.beginPath();
+      c.roundRect(8, COACH_H + 4, cv.width - 16, cv.height - COACH_H - 12, 32);
+      c.fill();
       c.font = '32px ui-monospace, monospace';
       c.fillStyle = '#b8f0c8';
-      dbg.split('\n').forEach((line, i) => c.fillText(line, cv.width / 2, 270 + i * 52));
+      c.textAlign = 'center';
+      c.textBaseline = 'middle';
+      dbg.forEach((line, i) => c.fillText(line, cv.width / 2, COACH_H + 48 + i * 52));
     }
     this.hintTex.needsUpdate = true;
   }

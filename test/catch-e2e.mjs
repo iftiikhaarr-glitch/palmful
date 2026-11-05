@@ -54,14 +54,14 @@ const state = () =>
     if (!p) return null;
     const c = p.catch;
     return {
-      tracked: p.tracked, phase: p.phase, hint: p.hint, cup: p.cup, mode: p.mode, size: p.handSize(),
+      tracked: p.tracked, phase: p.phase, hint: p.hint, coach: p.coach, cup: p.cup, mode: p.mode, size: p.handSize(),
       palm: { ...p.palmCenter },
       seed: c ? { state: c.seed, kind: c.kind, caught: { ...c.caught }, x: c.pos.x, y: c.pos.y, z: c.pos.z, catches: c.catches, misses: c.misses, round: c.round } : null,
       m: { ...p.metrics },
     };
   });
 const prog = (s) => `gold ${s.seed.caught.gold ? 1 : 0}/1 blue ${s.seed.caught.blue ? 1 : 0}/1 pink ${s.seed.caught.pink ? 1 : 0}/1`;
-const fmt = (s) => (s?.seed ? `${s.seed.kind}:${s.seed.state} [${prog(s)}] missed=${s.seed.misses} phase=${s.phase} hint="${s.hint}"` : JSON.stringify(s));
+const fmt = (s) => (s?.seed ? `${s.seed.kind}:${s.seed.state} [${prog(s)}] missed=${s.seed.misses} phase=${s.phase} coach=${s.coach} hint="${s.hint}"` : JSON.stringify(s));
 async function waitFor(desc, pred, timeoutS) {
   const end = Date.now() + timeoutS * 1000;
   let s;
@@ -115,7 +115,7 @@ try {
   await page.waitForFunction(() => document.querySelector('#laptop-start')?.style.display === 'none', null, { timeout: 30000 });
   await page.waitForTimeout(500);
   await waitFor('opening: gold seed waits, progress display shows 0/1 x3, asks for a palm', (s) =>
-    s.mode === 'catch' && s.phase === 'await' && s.seed?.state === 'waiting' && s.seed.kind === 'gold' && s.seed.catches === 0 && /Hold out your hand/.test(s.hint), 60);
+    s.mode === 'catch' && s.phase === 'await' && s.seed?.state === 'waiting' && s.seed.kind === 'gold' && s.seed.catches === 0 && /Hold out your hand/.test(s.hint) && s.coach === 'c-raise' && /catch 3 seeds/.test(s.hint), 60);
   const pts0 = await page.evaluate(() => window.__palmful.screenPoints());
   check('progress display and seed are on screen at the opening', !!pts0.hud && !!pts0.seed, JSON.stringify({ hud: pts0.hud, seed: pts0.seed }));
   check('status says the hand is lowered', /HAND HIDDEN/.test(await page.textContent('#laptop-status')));
@@ -132,8 +132,30 @@ try {
   // Gold: no catch without a cup, then catch
   await press(' ');
   await waitFor('gold: palm offered, seed falls', (s) => s.seed.state === 'falling', 30);
+  await waitFor('coach step 1: "Move your open palm under the seed"', (s) => s.coach === 'c-under' && s.seed.state === 'falling', 5);
+  // record every coach change with the seed state at that frame
+  await page.evaluate(() => {
+    const seq = (window.__coachSeq = []);
+    const tick = () => {
+      const p = window.__palmful;
+      const last = seq[seq.length - 1];
+      if (!last || last.id !== p.coach) seq.push({ id: p.coach, seed: p.catch.seed, ring: p.catch.seed === 'falling' });
+      if (seq.length < 50) requestAnimationFrame(tick);
+    };
+    tick();
+  });
+  await page.screenshot({ path: `${shots}/v2-coach-1-under.png` });
+  await press('s', 4); // hold the hand 8 cm lower, so the seed visibly falls onto the open palm
   await moveUnderSeed();
   await waitFor('gold: lands in the open palm', (s) => s.seed.state === 'resting', 30);
+  await waitFor('coach step 3 only after it lands: "Now gently cup your hand"', (s) => s.coach === 'c-cup' && s.seed.state === 'resting', 3);
+  await page.screenshot({ path: `${shots}/v2-coach-3-cup.png` });
+  const seq = await page.evaluate(() => window.__coachSeq);
+  const ids = seq.map((e) => e.id).join(' > ');
+  const iLand = seq.findIndex((e) => e.id === 'c-land');
+  const iCup = seq.findIndex((e) => e.id === 'c-cup');
+  check('coach steps in order: under > land (while falling, palm under) > cup (only once resting)',
+    ids.startsWith('c-under > c-land') && iLand >= 0 && seq[iLand].seed === 'falling' && iCup > iLand && seq[iCup].seed === 'resting' && !seq.slice(0, iCup).some((e) => e.id === 'c-cup'), ids);
   await page.waitForTimeout(2500);
   await waitFor('no false catch: open palm holds it 2.5 s without catching', (s) => s.seed.state === 'resting' && s.seed.catches === 0, 5);
 
@@ -162,6 +184,7 @@ try {
   await page.evaluate(() => window.__palmful.holdCue(true));
   await press('C');
   const g = await waitFor('gold caught: progress gold 1/1', (s) => s.seed.caught.gold && s.seed.catches === 1, 15);
+  check('the coach names the goal after the first catch: "1 of 3 caught"', g.coach === 'c-goal1' && /1 of 3 caught/.test(g.hint), g.hint);
   await page.waitForFunction(() => window.__palmful.holdCue(true) === 'frozen' || false, null, { timeout: 10000 }).catch(() => {});
   await page.screenshot({ path: `${shots}/v2-catch-cue.png` });
   await page.evaluate(() => window.__palmful.holdCue(false));
@@ -209,6 +232,7 @@ try {
   await catchCurrent('pink');
   await waitFor('3/3: session complete', (s) => s.phase === 'done' && s.seed.state === 'done' && s.seed.catches === 3, 20);
   await page.waitForTimeout(1500);
+  await waitFor('coach at 3/3, hand still cupped: "Open your hand" (step 1 of the restart)', (s) => s.coach === 'c-open', 3);
   const layout = await page.evaluate(() => window.__palmful.layout());
   check('completion card is shown and clear of the hand and flowers', layout.panelVisible && layout.overlaps === 0, JSON.stringify(layout));
   await page.screenshot({ path: `${shots}/v2-4-complete.png` });
@@ -229,6 +253,7 @@ try {
   await press('F'); // fist off -> open hand
   await page.waitForFunction(() => window.__palmful.restartArmed(), null, { timeout: 5000 });
   log('OK  ', 'opening the hand arms the replay');
+  await waitFor('coach then shows step 2: "Now make a fist"', (s) => s.coach === 'c-fist', 3);
   await page.waitForTimeout(300);
   const card2 = await page.evaluate(() => window.__palmful.cardText);
   check('completion card after opening: every line fits inside the card', fits(card2) && /^make a fist/.test(card2.lines[1]), JSON.stringify(card2));
@@ -237,6 +262,8 @@ try {
   await waitFor('fist restart: all counts reset, gold first', (s) => s.m.restarts >= 1 && s.seed.catches === 0 && s.seed.misses === 0 && !s.seed.caught.gold && !s.seed.caught.blue && !s.seed.caught.pink && s.seed.kind === 'gold' && s.phase === 'play', 20);
   await press('F');
   await waitFor('hand opened: the gold seed falls again', (s) => s.seed.state === 'falling', 15);
+  await moveUnderSeed();
+  await waitFor('second session: no step-by-step lesson (no card while the open palm waits under the seed)', (s) => s.seed.state === 'falling' && s.coach === '', 10);
 
   // Saved display size survives a reload
   await page.reload();

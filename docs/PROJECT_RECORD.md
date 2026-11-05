@@ -145,6 +145,37 @@ Keep this file current; it is how work continues across sessions.
   - **Completion text overflow:** the cards are canvas text in the viewer's system font; on Windows (Segoe UI) "open your hand, then make a fist to play again" at a fixed 50 px ran past the card. All card lines now shrink to fit (`fitFont`). This also applies on Quest, where it only changes text that would otherwise overflow. `test/catch-e2e.mjs` checks the drawn widths, and with `WIDE_FONT=1` it does so in DejaVu Sans, which is wider than Segoe UI (`docs/evidence/laptop-completion-card.jpg`).
   - **Help panel at the left edge:** not reproduced. In the four review screenshots the panel's right edge is consistently about 273 px from the start of its text: its full width plus padding, so the panel itself was intact. The screenshots appear to start a few pixels inside the window. In headed Chromium the panel's left edge was at 12 px, and a sideways touchpad swipe over it did not shift it. The margin is now 16 px (checked at 1820×836, 1897×869 and 1878×881), and the panel cannot scroll sideways (`overflow-x: hidden`, long words wrap).
 
+## In-game coach (5 Nov 2026, after the first Quest tester's feedback)
+
+- **Why:** the first Quest 3/3S tester (Aaron) reported he could not tell what
+  to do, especially in Catch, and spent too long following the GitHub
+  instructions. His recordings had not been reviewed when this was built; any
+  change beyond onboarding waits for that review.
+- **What:** the hint card became a coach card (`src/coach.ts`): one action at a
+  time, a step strip, a few plain words and a small animated hand pictogram
+  (own 256 px canvas, redrawn about 20 times a second only while a card with a
+  pictogram is shown; the text card redraws only when the step changes).
+  - Bloom: Hold out your hand → (Keep your palm open) → Tilt gently toward the
+    light → "1 of 3 in bloom" → make a fist to play again.
+  - Catch: Under → Land → Cup, with the cup step green and shown only once the
+    seed rests; "1 of 3 caught · next: blue, on your right"; at 3/3 Open your
+    hand → Now make a fist (the existing restart rule).
+  - Placement: Catch, stacked above the progress display (so it never covers a
+    seed lane or the palm; this also moves the opening instruction off the
+    waiting seed, the 3 px emulator near-overlap); Bloom, above the waiting
+    seed, then ahead about 8° below the horizon or above the hand if it is held
+    higher, eased.
+  - The full lesson runs in the first session of a page load; after a fist
+    restart only reminders remain.
+- **Unchanged:** every game rule and threshold (`CUP_ON`, landing, fall speed,
+  lanes, restart arming), the Quest camera, the progress display.
+- **Checked (emulator only):** both complete sessions with the coach sequence
+  asserted (`laptop-e2e`, `catch-e2e`, including the frame-by-frame order
+  under → land → cup); `test/coach-layout.mjs` at 5 window sizes: every card
+  inside the window and clear of seed, ring, Mote, hand and progress display.
+  Card size and reading distance on a Quest, and whether first-time players
+  follow it, need the new Part 0 in `QUEST_TEST_GUIDE.md`.
+
 ## Not verified (needs a headset): see `docs/QUEST_TEST_GUIDE.md`
 
 ## Open issues
