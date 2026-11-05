@@ -159,6 +159,15 @@ const COLORS = {
   joy: new Color('#fff3b0'),
   waiting: new Color('#9aa7b8'),
 };
+/**
+ * Grown flowers fan apart so three neighbouring blooms don't sit on top of
+ * each other: each stem leans sideways (along the palm's pinky-to-index axis)
+ * from its own fingertip, and the stems differ a little in height. The root
+ * stays on the fingertip. Index leans toward the index side, ring toward the
+ * pinky side, the middle stands straight and a little taller.
+ */
+const FLOWER_LEAN: Record<FingerName, number> = { index: 0.45, middle: 0, ring: -0.45 };
+const FLOWER_STEM: Record<FingerName, number> = { index: 0.012, middle: 0.016, ring: 0.011 };
 const PETAL_COLORS: Record<FingerName, string> = {
   middle: '#ff8fb1',
   index: '#9ad7ff',
@@ -624,11 +633,12 @@ export class PalmfulSystem extends createSystem({}) {
 
   private makeFlower(finger: FingerName): Group {
     const g = new Group();
+    const h = FLOWER_STEM[finger];
     const stem = new Mesh(
-      new CylinderGeometry(0.0008, 0.0011, 0.012, 6),
+      new CylinderGeometry(0.0008, 0.0011, h, 6),
       new MeshStandardMaterial({ color: '#6fbf73' }),
     );
-    stem.position.y = 0.006;
+    stem.position.y = h / 2;
     g.add(stem);
     const petalGeo = new SphereGeometry(0.0042, 12, 8);
     const petalMat = new MeshStandardMaterial({
@@ -639,7 +649,7 @@ export class PalmfulSystem extends createSystem({}) {
     for (let i = 0; i < 5; i++) {
       const p = new Mesh(petalGeo, petalMat);
       const a = (i / 5) * Math.PI * 2;
-      p.position.set(Math.cos(a) * 0.0045, 0.0125, Math.sin(a) * 0.0045);
+      p.position.set(Math.cos(a) * 0.0045, h + 0.0005, Math.sin(a) * 0.0045);
       p.scale.set(1, 0.35, 0.6);
       p.rotation.y = -a;
       g.add(p);
@@ -648,7 +658,7 @@ export class PalmfulSystem extends createSystem({}) {
       new SphereGeometry(0.0022, 10, 8),
       new MeshBasicMaterial({ color: '#ffe066' }),
     );
-    center.position.y = 0.0135;
+    center.position.y = h + 0.0015;
     g.add(center);
     // laptop view: a flower inside a closed fist still shows, faintly
     if (EMULATED_VIEW && !FULL_SKELETON) addSeeThrough(g, 0.5, 0.4);
@@ -1096,7 +1106,9 @@ export class PalmfulSystem extends createSystem({}) {
       const celebrate = done ? 1 + Math.max(0, Math.sin(time * 6)) * 0.15 : 1;
       g.scale.setScalar(Math.max(0.001, grow * celebrate));
       this.tipPos(f, 0, g.position, fr);
-      g.up.set(n.x, n.y, n.z);
+      // lean sideways from the fingertip (see FLOWER_LEAN); the root stays put
+      const k = FLOWER_LEAN[f];
+      g.up.set(n.x + fr.side.x * k, n.y + fr.side.y * k, n.z + fr.side.z * k).normalize();
       this.tmp.set(g.position.x + fr.fwd.x, g.position.y + fr.fwd.y, g.position.z + fr.fwd.z);
       g.lookAt(this.tmp);
     }

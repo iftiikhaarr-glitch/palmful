@@ -58,6 +58,17 @@
   - The coach's tilt pictogram and words follow ("Tilt gently toward the
     flower").
 
+- **Completed flowers overlapped (user's laptop review of Catch):** the three
+  blooms on neighbouring fingertips sat on top of each other. Each stem now
+  leans about 24° sideways from its own fingertip along the palm's
+  pinky-to-index axis (index outward, ring outward, middle straight). The stems
+  differ a little in height (middle 16 mm, index 12 mm, ring 11 mm). Roots stay
+  on their fingertips; there is no new animation and no gameplay change.
+  - Open hand: clearly apart. Fist: apart as well.
+  - Cupped hand: pink and gold still partly overlap, because the view runs
+    along the curled fingers.
+  - Evidence: `evidence/laptop-flowers-fan-before-after.jpg`.
+
 ## Test results (5 Nov 2026, local production build, headless Chromium)
 
 | Test | Result |
