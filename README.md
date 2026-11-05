@@ -17,7 +17,7 @@ The game teaches itself; nobody needs to read this page to play. One card at
 a time shows the next action in a few plain words, with a small animated hand:
 
 - **Bloom:** ① *Hold out your hand* (open, palm up, under the seed) →
-  ② *Tilt gently toward the light* (Mote slides to the glowing fingertip) →
+  ② *Tilt gently toward the flower* (Mote slides to the glowing fingertip) →
   "1 of 3 in bloom" → at the end, *make a fist to play again*. Closing the
   hand (a fist or a cup) before the end brings back step 1, *Open your hand*.
 - **Catch:** a three-step strip, **① Under → ② Land → ③ Cup**: *Open palm under

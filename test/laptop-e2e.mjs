@@ -46,15 +46,22 @@ try {
   await waitFor('seed lands and hatches -> play', (s) => s.phase === 'play' && s.tracked, 60);
   await waitFor('first session: coach step 2 teaches the tilt while the light trail shows the way', (s) => s.trail && s.coach === 'b-tilt', 30);
   await page.screenshot({ path: `${shots}/laptop-2-trail.png` });
+  const tg1 = await page.evaluate(() => window.__palmful.target());
+  const tgPts = await page.evaluate(() => window.__palmful.screenPoints().target);
+  if (!tg1.visible || tg1.finger !== 'middle' || tg1.color !== '#ff8fb1' || tg1.tipDist > 0.0045 || !tgPts) throw new Error('target marker: ' + JSON.stringify({ tg1, tgPts }));
+  log('OK  ', 'target marker: pink flower (the middle flower\'s colour) on the middle fingertip', JSON.stringify(tg1));
   await keys('F'); // a fist before the end: the coach goes back to step 1
   await waitFor('fist during play: coach says "Open your hand" (step 1 again, not ticked)', (s) => s.coach === 'b-open' && /Open your hand/.test(s.hint) && s.blooms === 0, 10);
   await page.screenshot({ path: `${shots}/laptop-2b-fist-open-hand.png` });
   await keys('F'); // open again
-  await waitFor('hand open again: back to "Tilt gently toward the light"', (s) => s.coach === 'b-tilt', 10);
+  await waitFor('hand open again: back to "Tilt gently toward the flower"', (s) => s.coach === 'b-tilt', 10);
 
   await keys('ArrowUp', 7); // 35 deg fingertips down
   await waitFor('bloom 1 (middle)', (s) => s.blooms >= 1, 240);
   await waitFor('after the first bloom: "1 of 3 in bloom" (the goal)', (s) => s.coach === 'b-goal1', 3);
+  const tg2 = await page.evaluate(() => window.__palmful.target());
+  if (tg2.finger !== 'index' || tg2.color !== '#9ad7ff' || tg2.tipDist > 0.0045) throw new Error('target marker after bloom 1: ' + JSON.stringify(tg2));
+  log('OK  ', 'next target: blue flower on the index fingertip', JSON.stringify(tg2));
   await page.screenshot({ path: `${shots}/laptop-3-bloom1.png` });
   await waitFor('then the tilt lesson is done: no card while playing', (s) => s.coach === '' && s.hint === '', 6);
 

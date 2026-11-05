@@ -43,11 +43,20 @@
   (the game's own fist or cup measure, thresholds unchanged) before the end
   shows step 1 again, *Open your hand*, unticked. `laptop-e2e` checks F → *Open
   your hand* → F → *Tilt gently toward the light*.
-- **Target fingertip vs Mote (checked, not changed):** while Mote slides it
-  turns pale yellow (`#ffd27a`), and on arrival `#fff3b0`, almost the same
-  colour as the target light (`#fff6c2`). They differ mainly by size, and the
-  light floats just above the fingertip. A colour change for the light is
-  proposed in the PR, not made, pending the user's decision.
+- **Target fingertip vs Mote (changed at the user's request):** while Mote
+  slid it turned pale yellow, almost the colour of the cream target light. The
+  target is now a small flat five-petal flower, about 1.1 cm across. It faces
+  the viewer and turns slowly, on a soft dark backing, in the colour of the
+  flower that finger will grow: pink for the middle finger, then blue for the
+  index, then violet for the ring finger. It sits at the same point as before
+  (4 mm above the target fingertip), with the same pulse. Mote stays a round,
+  warm ball. Display only: no rule, threshold or target order changed.
+  - `laptop-e2e` checks the colour and finger: pink on the middle fingertip,
+    then blue on the index, each within 4.5 mm of its fingertip.
+  - `contrast-check` now also samples the target marker.
+  - Before and after: `evidence/laptop-bloom-target-vs-mote.jpg`.
+  - The coach's tilt pictogram and words follow ("Tilt gently toward the
+    flower").
 
 ## Test results (5 Nov 2026, local production build, headless Chromium)
 

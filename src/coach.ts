@@ -6,7 +6,7 @@
 export type CoachIcon =
   | 'raise' // a hand rises palm up under a waiting seed
   | 'palmUp' // the back of a hand turns over to show the palm
-  | 'tilt' // top view: palm tips, a dot slides to the glowing fingertip
+  | 'tilt' // top view: palm tips, a dot slides to the flower on the target fingertip
   | 'under' // side view: open palm slides under the seed; ring turns green
   | 'land' // side view: open palm stays still while the seed drops onto it
   | 'cup' // side view: fingers curl gently around the resting seed
@@ -241,12 +241,24 @@ function topHand(c: CanvasRenderingContext2D, x: number, y: number, tilt: number
     c.fill();
     c.stroke();
     if (i === glowFinger) {
-      c.fillStyle = '#fff6c2';
-      c.globalAlpha = 0.45 + 0.35 * Math.sin(performance.now() / 160);
+      // the target: a small pink flower on the fingertip, as in the game
+      const tx = fx, ty = -14 - len[i];
+      const r = 1 + 0.15 * Math.sin(performance.now() / 160);
+      c.fillStyle = 'rgba(28,20,36,0.6)';
       c.beginPath();
-      c.arc(fx, -12 - len[i], 20, 0, Math.PI * 2);
+      c.arc(tx, ty, 21 * r, 0, Math.PI * 2);
       c.fill();
-      c.globalAlpha = 1;
+      c.fillStyle = '#ff8fb1';
+      for (let k = 0; k < 5; k++) {
+        const a = (k / 5) * Math.PI * 2 + performance.now() / 1200;
+        c.beginPath();
+        c.arc(tx + Math.cos(a) * 10 * r, ty + Math.sin(a) * 10 * r, 7.5 * r, 0, Math.PI * 2);
+        c.fill();
+      }
+      c.fillStyle = '#fff6c2';
+      c.beginPath();
+      c.arc(tx, ty, 5 * r, 0, Math.PI * 2);
+      c.fill();
       c.fillStyle = SKIN;
     }
   });

@@ -220,6 +220,8 @@ declare global {
       hasBackdrop: boolean;
       handSize: () => string;
       restartArmed: () => boolean;
+      /** bloom target marker: finger, petal colour, and its distance (m) from that fingertip */
+      target: () => { visible: boolean; finger: string; color: string; tipDist: number };
       /** laptop test aid: freeze at the next catch/miss cue (true), resume (false) */
       holdCue: (on: boolean) => string;
       /** laptop test aid: pause the game now (true) or resume (false); the hand still moves */
@@ -259,7 +261,9 @@ export class PalmfulSystem extends createSystem({}) {
   private body!: Mesh;
   private bodyMat!: MeshStandardMaterial;
   private shadow!: Mesh;
-  private beacon!: Mesh;
+  private beacon!: Group; // target marker: a small flower in the colour it will bloom
+  private beaconPetals: MeshBasicMaterial[] = [];
+  private beaconFor: FingerName | null = null;
   private hint!: Mesh;
   private hintCanvas!: HTMLCanvasElement;
   private hintTex!: CanvasTexture;
@@ -473,6 +477,16 @@ export class PalmfulSystem extends createSystem({}) {
       hasBackdrop: this.root.getObjectByName('emulator-backdrop') !== undefined,
       handSize: () => this.handSize,
       restartArmed: () => this.restartArmed,
+      target: () => {
+        const f = this.st.target;
+        const tip = this.tipPos(f, 0, new Vector3());
+        return {
+          visible: this.beacon.visible,
+          finger: f,
+          color: '#' + this.beaconPetals[0].color.getHexString(),
+          tipDist: this.beacon.position.distanceTo(tip),
+        };
+      },
       holdCue: (on: boolean) => {
         if (EMULATED_VIEW) this.cueHold = !on ? 'off' : this.cueHold === 'frozen' ? 'frozen' : 'armed';
         return this.cueHold;
@@ -548,10 +562,27 @@ export class PalmfulSystem extends createSystem({}) {
   }
 
   private buildBeacon(): void {
-    this.beacon = new Mesh(
-      new SphereGeometry(0.0045, 16, 12),
-      new MeshBasicMaterial({ color: '#fff6c2', transparent: true, opacity: 0.9 }),
+    // A flat five-petal flower facing the viewer, in the colour of the flower
+    // that fingertip will grow, on a soft dark backing so it reads over skin.
+    // Mote is a round, warm ball; the target is flat, petalled and cool/pink.
+    this.beacon = new Group();
+    const backing = new Mesh(
+      new CircleGeometry(0.0068, 24),
+      new MeshBasicMaterial({ color: '#1c1424', transparent: true, opacity: 0.55, depthWrite: false }),
     );
+    this.beacon.add(backing);
+    const petalGeo = new CircleGeometry(0.0024, 16);
+    for (let i = 0; i < 5; i++) {
+      const a = (i / 5) * Math.PI * 2;
+      const m = new MeshBasicMaterial({ color: '#ffffff' });
+      this.beaconPetals.push(m);
+      const petal = new Mesh(petalGeo, m);
+      petal.position.set(Math.cos(a) * 0.0033, Math.sin(a) * 0.0033, 0.0002);
+      this.beacon.add(petal);
+    }
+    const centre = new Mesh(new CircleGeometry(0.0016, 16), new MeshBasicMaterial({ color: '#fff6c2' }));
+    centre.position.z = 0.0004;
+    this.beacon.add(centre);
     this.root.add(this.beacon);
   }
 
@@ -1038,8 +1069,16 @@ export class PalmfulSystem extends createSystem({}) {
     this.beacon.visible = this.tracked && this.phase === 'play' && !done && !this.flowers[this.st.target];
     if (this.beacon.visible) {
       this.tipPos(this.st.target, 0.004, this.beacon.position);
+      if (this.beaconFor !== this.st.target) {
+        this.beaconFor = this.st.target;
+        for (const m of this.beaconPetals) m.color.set(this.petalColor(this.st.target));
+      }
       const pulse = 1 + Math.sin(time * 5) * 0.25 + (this.st.dwellT > 0 ? this.st.dwellT * 1.5 : 0);
       this.beacon.scale.setScalar(pulse);
+      // face the viewer, turning slowly: a twinkling flower, never a ball
+      this.player.head.getWorldPosition(this.tmp); // lookAt takes world space
+      this.beacon.lookAt(this.tmp);
+      this.beacon.rotateZ(time * 0.8);
     }
     for (const f of FINGERS) {
       const g = this.flowers[f];
@@ -1222,6 +1261,7 @@ export class PalmfulSystem extends createSystem({}) {
       }
     }
     if (this.seed.visible) add('seed', this.seed.getWorldPosition(new Vector3()));
+    if (this.beacon.visible) add('target', this.beacon.getWorldPosition(new Vector3()));
     if (this.catchSeed?.visible) add('seed', this.catchSeed.getWorldPosition(new Vector3()));
     if (this.hud?.visible) add('hud', this.hud.getWorldPosition(new Vector3()));
     // panel corners, for "is anything clipped at the window edge?" tests
@@ -1784,14 +1824,14 @@ export class PalmfulSystem extends createSystem({}) {
     }
     if (st.mood === 'cling') return { id: 'b-palmup2', title: 'Turn your palm up', sub: '', icon: 'palmUp', tone: 'warn' };
     if (this.goalT > 0 && st.blooms < 3)
-      return { id: `b-goal${st.blooms}`, title: `${st.blooms} of 3 in bloom`, sub: 'follow the light to the next fingertip', icon: 'tilt', tone: 'done', dots: { colors: petals, filled: st.blooms } };
+      return { id: `b-goal${st.blooms}`, title: `${st.blooms} of 3 in bloom`, sub: 'follow the trail to the next flower', icon: 'tilt', tone: 'done', dots: { colors: petals, filled: st.blooms } };
     // First session: teach the tilt until the first bloom. Later sessions:
     // wordless (the light trail shows the way) unless the player has not
     // tipped their hand for a while.
     if (first && st.blooms === 0)
-      return { id: 'b-tilt', title: 'Tilt gently toward the light', sub: 'Mote slides to the glowing fingertip', icon: 'tilt', tone: 'go', steps: steps(1) };
+      return { id: 'b-tilt', title: 'Tilt gently toward the flower', sub: 'Mote slides to the glowing fingertip', icon: 'tilt', tone: 'go', steps: steps(1) };
     if (st.blooms === 0 && this.metrics.firstSlideS === null && this.phaseT > 8 && this.idleT > 4)
-      return { id: 'b-tilt2', title: 'Tilt gently toward the light', sub: '', icon: 'tilt', tone: 'go' };
+      return { id: 'b-tilt2', title: 'Tilt gently toward the flower', sub: '', icon: 'tilt', tone: 'go' };
     return null;
   }
 
