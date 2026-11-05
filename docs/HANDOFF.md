@@ -1,30 +1,53 @@
-# Handoff: in-game coach, waiting for Aaron's Quest recordings (5 Nov 2026)
+# Handoff: in-game coach is live; waiting for Aaron's Quest recordings (5 Nov 2026)
 
 ## Where the work is
 
-- **Branch:** `claude/peaceful-fermi-fgkd3n`
-- **PR (not merged, review only):** https://github.com/iftiikhaarr-glitch/palmful/pull/12
-- **`main` / live site:** unchanged at `b952d41`. **Devpost:** unchanged.
+- **PR #12 merged into `main` as `5a147a1`, and Pages run #13 deployed it
+  successfully.** The PR is the in-game coach, the flower target marker and the
+  fanned flowers: https://github.com/iftiikhaarr-glitch/palmful/pull/12. It was
+  merged at the owner's request after their laptop review of the Catch steps.
+  The run passed every check (typecheck, unit tests, build, the
+  bloom/catch/two-hand/landing sessions, contrast, and coach layout at
+  1280×800 and 700×560) before deploying:
+  https://github.com/iftiikhaarr-glitch/palmful/actions/runs/41978952075
+- **Live now** (nothing is awaiting merge):
+  - Bloom: https://iftiikhaarr-glitch.github.io/palmful/
+  - Catch: https://iftiikhaarr-glitch.github.io/palmful/?catch=1
+- **Handoff updates:** docs-only PR #13
+  (https://github.com/iftiikhaarr-glitch/palmful/pull/13).
+- **Devpost:** unchanged.
+- **Aaron's recordings:** not received. As of 5 Nov there is no file in the
+  cloud session and no new GitHub issue, branch or upload.
 - **Branches to keep:**
   - `hold/catch-opening-settled-check` (stricter contrast test; never merge as is);
   - `draft/submission` (Devpost draft, `docs/SUBMISSION_DRAFT.md`);
   - `rollback/live-before-laptop-hand`, `rollback/catch-v1`;
   - the `preview-*` branches.
 
-## Preview links (laptop emulator)
+## Links
 
-- Built from `3f9d501`, the same game code as the PR.
-- Served from branch `preview-coach`, commit `2fdb7ce`.
-- Bloom: https://raw.githack.com/iftiikhaarr-glitch/palmful/2fdb7cef36ab9fdbc83c57ee4bb2e86ad70b014d/index.html?emulate=1
-- Catch: https://raw.githack.com/iftiikhaarr-glitch/palmful/2fdb7cef36ab9fdbc83c57ee4bb2e86ad70b014d/index.html?emulate=1&catch=1
-- On a Quest: the same URLs without `emulate=1`. **Not yet opened on a headset.**
-- Screenshots: [`evidence/laptop-coach-steps.jpg`](evidence/laptop-coach-steps.jpg).
+- **For a first-time Quest tester** (no debug panel; Quest Browser):
+  - Catch first: https://iftiikhaarr-glitch.github.io/palmful/?catch=1
+  - Then Bloom: https://iftiikhaarr-glitch.github.io/palmful/
+  - The facilitator follows Part 0 of
+    [`QUEST_QUICK_CHECKLIST.md`](QUEST_QUICK_CHECKLIST.md) (silent; one-line
+    intro only).
+- **Measured Quest test** (debug numbers): the `&debug=1` links in Parts A and
+  B of the checklist.
+- **Laptop emulator** (live):
+  - https://iftiikhaarr-glitch.github.io/palmful/?emulate=1
+  - https://iftiikhaarr-glitch.github.io/palmful/?emulate=1&catch=1
+- **Screenshots** (`evidence/`):
+  - `laptop-coach-steps.jpg`
+  - `laptop-bloom-fist-coach-before-after.jpg`
+  - `laptop-bloom-target-vs-mote.jpg`
+  - `laptop-flowers-fan-before-after.jpg`
 
 ## What changed (onboarding only)
 
 - **The coach:** one action at a time, a step strip, plain words and an
   animated hand pictogram (`src/coach.ts`).
-- **Bloom:** Hold out your hand → Tilt gently toward the light → 1 of 3 in
+- **Bloom:** Hold out your hand → Tilt gently toward the flower → 1 of 3 in
   bloom → make a fist to play again.
 - **Catch:**
   - Under → Land → Cup, with *Now cup gently* (green) only once the seed rests.
@@ -36,7 +59,7 @@
 - **Unchanged:** game rules, thresholds (`CUP_ON` 0.42, landing, fall speed,
   lanes, restart arming), the Quest camera and both modes.
 
-## Fixed after the user's preview review (5 Nov 2026)
+## Fixed after the owner's laptop review (5 Nov 2026; all merged in PR #12)
 
 - **Bloom, fist before the end:** the coach kept saying "Tilt gently toward the
   light" with "Open palm" ticked while the hand was a fist. Now any closed hand
@@ -69,18 +92,19 @@
     along the curled fingers.
   - Evidence: `evidence/laptop-flowers-fan-before-after.jpg`.
 
-## Test results (5 Nov 2026, local production build, headless Chromium)
+## Test results on the merged code (`de9b10b`, 5 Nov 2026; local production build, headless Chromium)
 
 | Test | Result |
 |---|---|
 | typecheck, unit tests | pass, 36/36 |
-| `laptop-e2e` (full bloom session + coach sequence) | 20 OK |
+| `laptop-e2e` (full bloom session, coach sequence, fist → *Open your hand*, flower marker pink → blue) | 24 OK |
 | `catch-e2e` (full catch session; coach order under > land > cup frame by frame) | 49 OK |
 | `twohand-e2e`, `landing-e2e` | 19 OK, 3 OK |
 | `layout-sizes` (5 sizes × both modes) | 120 OK |
 | `coach-layout` (every coach step, 5 sizes, clear of seed/ring/Mote/hand/progress) | 71 OK |
-| `contrast-check` (+3 repeats) | pass; bloom seed worst 5.5:1 |
-| `hand-poses` at 1897×869, 700×560, 1280×800 two-hand | all pass |
+| `contrast-check` | pass; bloom seed worst 5.5:1; target marker 12.4–14.6:1 against the dark background |
+| `hand-poses` at 1897×869 | pass |
+| CI on `main` after the merge (Pages run #13) | all steps pass, deployed |
 
 Emulator only. Nothing here measures real-hand tracking, comfort or Quest
 frame rate.
@@ -126,11 +150,17 @@ frame rate.
      a game rule or threshold (such as `CUP_ON`) only if the recorded numbers
      show it, and only after the user agrees.
    - **Everything else:** note it; don't change it.
-4. Fix only the blocking items on this branch. Rerun the suite above, update
-   the preview branch, and push to PR #12.
-5. Request a focused headset retest:
-   - **Part 0** with a new first-time player on the preview link: Catch first,
-     then Bloom, with the facilitator silent.
+4. Fix only the blocking items on a fresh branch from `main` (PR #12 is
+   merged; open a new PR). Rerun the suite above. If the owner wants to try
+   the fix before merging, build a laptop preview with
+   `npx vite build --base ./ --outDir <scratch>` and push it to
+   `preview-coach`, served at
+   `https://raw.githack.com/iftiikhaarr-glitch/palmful/<commit>/index.html`.
+5. Request a focused headset retest on the live links once the fix is merged:
+   - **Part 0** with a new first-time player: Catch first
+     (https://iftiikhaarr-glitch.github.io/palmful/?catch=1), then Bloom
+     (https://iftiikhaarr-glitch.github.io/palmful/), with the facilitator
+     silent.
    - Then only the Part A/B rows that failed or were inconclusive.
 6. Report to the user before merging. Merge only with their approval. Then
    check that the Pages deployment passed, and update `SUBMISSION_DRAFT.md`
