@@ -1,52 +1,47 @@
-# Palmful: final Devpost submission package (Bloom) — not submitted
+# Palmful: final Devpost submission package (Bloom) — draft, not submitted
 
-Prepared 5 Nov 2026 from `main` at `e535c31`. **Bloom is the submitted mode**
-(the default at the build URL). Catch stays in the build behind `?catch=1` and
-is not part of this entry. Nothing has been entered on Devpost or uploaded.
+Updated 6 Nov 2026 from `main` at `e535c31`. **Bloom is the submitted
+experience**, at https://iftiikhaarr-glitch.github.io/palmful/ (the default
+mode). Catch stays in the build behind `?catch=1` and is not part of this entry.
+Nothing has been submitted, and no media has been uploaded.
 
-**Eligibility, as you reported it (both confirmed):**
-- **Meta VR Start:** membership **approved on 6 Nov 2026** (the "Congratulations
-  and welcome to the Start program" email).
-- **Meta VR developer account:** **verified**. Your account shows "You have
-  successfully verified your Meta VR developer account."
+**Eligibility (as you reported; both confirmed):**
+- **Meta VR Start:** membership approved on 6 Nov 2026.
+- **Meta VR developer account:** verified.
+- **Membership email:** you corrected the draft's membership email field
+  yourself; your Devpost login stays as it is. Check that the field matches
+  the address on your Start approval email.
 
-Keep both confirmations (email and account page) in case the organisers ask
-for proof of eligibility.
+Keep the approval email and a screenshot of the verified developer account, in
+case the organisers ask for proof.
 
 ---
 
-## 1. Requirements
+## 1. Requirements (official rules and overview page, read 6 Nov 2026)
 
-**Sources:**
-- **[R]** the official rules and judging text you supplied on 2 Nov, recorded
-  in `docs/PROJECT_RECORD.md`;
-- **[S]** web-search excerpts of the official 2026 rules page on 5 Nov;
-- **[?]** not verified. This cloud session can't open devpost.com,
-  developers.meta.com or the live site (network policy), so the live Devpost
-  form was **not** read.
-
-| Requirement | Detail | Source |
+| Requirement | What the rules say | Palmful |
 |---|---|---|
-| Deadline | 18 Nov 2026, 12:00 PM PT (= 19 Nov 00:00 Dubai). No changes after the deadline. | R, S |
-| Eligibility | Only members of the Meta VR Start program; you must be a member **by the time you submit**. A Meta developer account is required; organisers may ask for proof of eligibility. **Confirmed:** Start approved on 6 Nov 2026. | S |
-| Developer Access | An active Meta account with Developer Access. **Confirmed:** your Meta VR developer account shows as verified. | R (exact wording [?]) |
-| Division | New Experience: conceived and built on or after 24 Sep 2026 (this repository starts on 2 Nov 2026). | R |
-| Hands-only | Fully usable with hands end to end, with no controller ever needed. | R, S |
-| WebXR/IWSDK entries | Submit **a link** to the hosted build. It must stay available until winners are announced (about 11 Dec). | R ([?] for the exact form field) |
-| Video | **Under 3 minutes**, **public on YouTube or Vimeo**, link in the form. Footage "as viewed on a Meta Quest device or via XR Simulator or another equivalent emulator". Show real gameplay; don't lean on AI-generated video. | R; S confirms public YouTube/Vimeo ([?] for the length in the 2026 text) |
-| Content | No logos or brands. No identifiable people other than the entrant. | R |
-| Form fields | Name, tagline (140 characters), track, division, description (about 500 words: inspiration, how it was built, future plans), hand-interaction notes (optional), target launch date. | R ([?] for live limits and extra fields such as images, "Built with", team, country) |
-| Judging | Stage 1: viability, pass/fail. Stage 2: Innovation & Creativity, Experience Design, Technical Implementation (minimum **60 fps** on Quest hardware), Polish & Presentation. Judges use Quest 3 or 3S. | R |
-| Tools | No unreleased Meta tools or SDKs. IWSDK 1.1.0-rc.2 is public on npm. | S |
+| Deadline | 18 Nov 2026, 12:00 PM PST; no changes after the entry period | Submit by about 17 Nov |
+| Eligibility | Age 18+ and not in an excluded territory; active Meta account with **Developer Access** by submission; submitter is a **Start member** by submission | Developer Access and Start membership confirmed; age and residency are yours to confirm |
+| Build (IWSDK / WebXR) | "A link will be required for judges to access and test your application" (GitHub Pages or another host); free; available until the winner announcement (about 11 Dec) | Live link (below) |
+| Video | "less than three (3) minutes", footage "as viewed on a Meta Quest device or via XR Simulator or another equivalent emulator", **public on YouTube or Vimeo**, link in the form; show real gameplay, no AI-generated video | 1:31 emulator video, labelled |
+| Form | Submission name; tagline (140 characters); track; division; text description (inspiration, how you built it, future plans; suggested 500 words or less); hand interactions and what excites you about the future of VR (optional); **target launch date, if not already published**; name, email and role for each team member, if applicable | Section 2 |
+| Track / division | Gaming; New Experience (conceived and built after 24 Sep 2026; no pre-existing codebase) | Gaming; New Experience (repository started 2 Nov 2026) |
+| Content | Hands-first end to end; English; no identifiable people other than entrants; no corporate logos, brand names or slogans; original work and properly licensed third-party code | Hands only; no third-party art or audio |
+| Judging | Stage 2 includes "performant on Meta Quest hardware (min 60 fps)" and high-quality text, images and video | **Current build not tested on a Quest** |
 
-**To check yourself on the live form:** every field's exact limit, any
-required images or thumbnail, and how WebXR builds are linked.
+Sources: https://start-developer-competition-26.devpost.com/rules and the
+overview page https://start-developer-competition-26.devpost.com/.
+
+**Not read:** the logged-in draft form itself (this session can't sign in to
+Devpost), so field labels, character limits and any extra questions are
+unconfirmed.
 
 ---
 
-## 2. Copy-and-paste answers
+## 2. Copy-and-paste answers for each field
 
-**Project name**
+**Submission name**
 ```
 Palmful
 ```
@@ -58,161 +53,141 @@ A tiny creature lives on your open hand. Tilt your palm to guide it to the glowi
 
 **Track:** Gaming  **Division:** New Experience
 
-**Build / try-it-out URL**
+**Project link / Try it out** (the build judges open)
 ```
 https://iftiikhaarr-glitch.github.io/palmful/
 ```
-**Source code** (if asked): `https://github.com/iftiikhaarr-glitch/palmful`
+**Source code** (if there's a field): `https://github.com/iftiikhaarr-glitch/palmful`
 
-**Description** (495 words; paste as one piece)
+**Text description** (paste as one piece; 451 words including the launch date
+line once you fill it in)
 ```
 Inspiration
 Holding something small and alive in an open hand, like a ladybird or a firefly, is a quiet, focused moment. Hand tracking makes your hand both the controller and the stage, so Palmful exists only on your palm.
 
 What it is
-A short, seated, hands-only game for Meta Quest in passthrough. A seed waits in front of you. Hold out an open hand, palm up, and it flies onto your palm and hatches into Mote, a tiny round creature. Your palm becomes a small landscape: tilt it and Mote slides. One fingertip carries a glowing flower in the colour it will bloom, and when Mote sits still a golden trail shows the way. Rest Mote on that fingertip and the finger blooms. Three blooms, on the middle, index and ring fingers, complete the garden. No menus, buttons, controllers or fail states.
-
-Hand interactions
-- Open palm, facing up: receive the seed.
-- Gentle tilt toward the flowered fingertip: Mote slides to it. Small wobbles don't move Mote; only a deliberate tilt does.
-- Hold Mote on the fingertip for a moment: it blooms.
-- After three blooms, close your hand into a fist for about a second: the garden resets and Mote hatches again.
-- Hand out of view: Mote waits, frozen and dimmed, where it was, and carries on when the hand returns. If it stays away for three seconds while your other hand is palm up, Mote moves to that hand, keeping its blooms.
-- Palm turned down: Mote clings on, and the game asks you to turn your palm up.
-On the first session, a guide shows one step at a time with a small animated hand.
+A short, seated, hands-only game for Meta Quest in passthrough. A seed waits in front of you. Hold out an open hand, palm up, and it flies onto your palm and hatches into Mote, a tiny round creature. Your palm becomes a small landscape: tilt it and Mote slides. One fingertip carries a glowing flower in the colour it will bloom, and a golden trail shows the way. Rest Mote on that fingertip and the finger blooms. Three blooms, on the middle, index and ring fingers, complete the garden; a fist plays again. On the first session, a guide shows one step at a time. No menus, buttons, controllers or fail states; a session takes a few minutes.
 
 Why passthrough
 The stage is your real hand. Mote sits on your own palm and the flowers grow from your own fingertips. It does not use the room; the hand is the point.
 
 How we built it
-Meta's Immersive Web SDK (WebXR) with three.js, in TypeScript, hosted on GitHub Pages: it opens from a link in the Quest Browser with nothing to install. The game rules are unit-tested and kept separate from rendering. Palmful's own visuals and sounds are all generated in code. Each change runs complete play sessions in Meta's IWER emulator before it deploys.
+Meta's Immersive Web SDK (WebXR) with three.js, in TypeScript, hosted on GitHub Pages, so it opens from a link in the Quest Browser with nothing to install. The game rules are unit-tested and kept separate from rendering. Mote ignores small tracking wobbles and only moves on a deliberate tilt, and hand loss pauses it in place instead of failing the player. Palmful's own visuals and sounds are all generated in code. Each change runs complete play sessions in Meta's IWER emulator before it deploys.
+
+How to try it
+On Quest 3 or 3S, open https://iftiikhaarr-glitch.github.io/palmful/ in the Quest Browser, pinch Enter AR, put the controllers down and hold out an open hand, palm up. Without a headset, add ?emulate=1 for a keyboard-driven laptop emulator.
 
 Testing status
-Palmful was developed and tested mostly in Meta's IWER emulator. One Quest recording of an earlier build showed 90 fps on its debug panel, the seed landing on the tester's palm and hatching, Mote riding on their hand, and one finger blooming. That is not evidence for the current build. The current build, which adds the in-game guide, has not yet been tested on a Quest, and neither has a complete three-bloom session on real hands. The demo video is laptop-emulator footage, with the hand simulated by keyboard.
+Palmful was developed and tested mostly in Meta's IWER emulator; the demo video is laptop-emulator footage with the hand simulated by keyboard. One Quest recording of an earlier build showed 90 fps on its debug panel, the seed landing and hatching on a tester's palm, and one finger blooming; that is not evidence for the current build. The current build, which adds the in-game guide, has not yet been verified on a Quest, and neither has a complete three-bloom session on real hands.
 
 What's next
-A replay challenge for smooth movement, more creatures, a second game (Catch) once its cup gesture is calibrated on real hands, and Meta VR Glasses support.
+Verifying the current build on Quest 3 and 3S with first-time players, a replay challenge for smooth movement, more creatures, a second game (Catch) once its cup gesture is calibrated on real hands, and Meta VR Glasses support.
+
+Target launch date: [YOUR DATE]
 ```
 
-**Hand-interaction notes** (optional field)
+**Hand interactions and the future of VR** (optional field)
 ```
-Hands only, seated. Open palm up to receive the seed. Tilt gently toward the fingertip with the glowing flower; Mote slides there and that finger blooms after a short rest. After three blooms, make a fist for about a second to play again. Hiding the hand pauses Mote in place; turning the palm down makes Mote cling and the game asks you to turn it up. Enter AR with a pinch on the page's button; no controller is ever needed.
+Palmful is played with one bare hand, seated, and never needs a controller (Enter AR is a pinch on the page's button).
+- Open palm, facing up: the seed comes to your hand and hatches.
+- Gentle tilt toward the fingertip with the glowing flower: Mote slides there. Small wobbles don't move Mote; only a deliberate tilt does.
+- Hold Mote on that fingertip for a moment: the finger blooms. Three blooms complete the garden.
+- After three blooms, a fist held for about a second plays again.
+- Hand out of view: Mote waits, frozen and dimmed, and carries on when the hand returns. After three seconds it can move to your other hand if that one is held palm up, keeping its blooms.
+- Palm turned down: Mote clings on and the game asks you to turn your palm up.
+The game reads the WebXR hand joints for a palm frame (centre, normal, finger paths), filters them, and runs a small physics model with static friction so tracking noise doesn't push Mote around.
+What excites us about VR: when your own hand becomes the place where something happens, the experience can only exist in passthrough with hand tracking. That makes small, calm, personal moments possible that no flat screen can give.
 ```
+
+**Target launch date** (its own field; *your decision*)
+
+Palmful is **not** published on the Meta VR Store, so this field applies. The
+playable web build is already live and free. Pick the date you're aiming for
+and enter it in both the field and the last line of the description, for
+example a date after real-hand testing on Quest. I haven't chosen one.
+
+**Team members:** if you're entering solo, leave this empty or list yourself
+as you prefer. Otherwise add each member's name, email and role.
 
 **Built with** (tags, if the form has them)
 ```
 IWSDK, WebXR, three.js, TypeScript, Vite, IWER, Playwright, GitHub Actions, GitHub Pages
 ```
-*Your decision:* add "Claude Code (AI coding assistant)" if you want to
-disclose AI-assisted development.
+*Your decision:* add "Claude Code" if you want to disclose AI-assisted
+development.
 
-**Video URL:** *your public YouTube or Vimeo link* (section 3).
-**Target launch date:** *not chosen.* Check first what this Devpost field
-asks for: a planned store or public release, or simply when the experience is
-available. The playable web demo is already live at the build URL. Decide and
-enter it only after that check.
-**Gallery:** the three PNGs in section 3. Caption each one "Laptop emulator;
-hand simulated with keyboard".
+**Video link:** your public YouTube or Vimeo URL (section 3).
 
 ---
 
-## 3. Media (not stored in this repository)
+## 3. Media (files are not stored in this repository)
 
-- **`palmful-demo-emulator.mp4`:** 1:31, 1920×1080, 30 fps, silent audio.
-  - Real laptop-emulator gameplay of the current build: the seed lands, Mote
-    moves, pink, blue and violet blooms, "All three in bloom", then the fist
-    restart.
-  - The caption "Laptop emulator; hand simulated with keyboard" is on every
-    frame, including the title and end cards. The end card reads "Made for Meta
-    Quest 3 / 3S", not "verified on".
-  - **Choppy:** recorded at about 18 fps in the cloud without a GPU. Use it only
-    as a fallback.
-- **Gallery** (1920×1080, labelled and captioned):
-  - `palmful-gallery-1-first-target.png`
-  - `palmful-gallery-2-first-bloom.png`
-  - `palmful-gallery-3-all-three-blooms.png`
-- **`palmful-media-project.zip`:** the scripts that record, edit and check a
-  smoother replacement on a Windows laptop (Node, Git and FFmpeg only); steps in
-  its `README-media.txt`. `check.mjs` reports the capture frame rate (GOOD or
-  CHOPPY), confirms the seed landing, the three blooms and the restart, checks
-  the length, and writes a one-frame-per-second contact sheet. Keep the 1:31
-  cloud MP4 as the fallback.
-  - Tested in the cloud: a fresh recording, then `node build.mjs`, produced an
-    89.5 s 1080p MP4.
-  - Not tested here: the visible-window GPU mode and Windows itself.
-- **Manual key sequence** (for a by-hand OBS fallback; press keys about 3 a
-  second):
-  - **Start:** **Start**, **?**, then **Space**; wait for the hatch.
-  - **First bloom:** **↑**×7.
-  - **Second bloom:** **Space**, **↓**×6, wait; **Space**, **→**×6, wait;
-    **↑**×7, **←**×4.
-  - **Third bloom:** **Space**, **↓**×6, wait; **Space**, **←**×6, wait;
-    **↑**×7, **→**×4.
-  - **Replay:** **Space**, **F**, wait about 2 s, then **F** again.
+**Video:** use the smoother Windows recording if you've made it and
+`check.mjs` rated it GOOD. Otherwise use the fallback
+`palmful-demo-emulator.mp4`:
+- **Length:** 1:31, under the 3-minute limit; 1920×1080, 30 fps, silent audio.
+- **Content:** real laptop-emulator gameplay of the current build. The seed
+  lands, Mote moves, pink, blue and violet blooms, "All three in bloom", then
+  the fist restart. All five events are confirmed by the recording's event log.
+- **Caption:** "Laptop emulator; hand simulated with keyboard" is on every frame,
+  title and end cards included.
+- **Known weakness:** visibly choppy (about 18 fps capture without a GPU).
 
----
+**Upload text** (YouTube or Vimeo):
+- **Title:** `Palmful – Bloom demo (laptop emulator)`
+- **Description:** "Palmful is a hands-only game for Meta Quest in passthrough: a
+  tiny creature lives on your open hand, and tilting your palm guides it to a
+  flower on a fingertip, which blooms. This video is laptop-emulator footage
+  (Meta's IWER WebXR emulator) with the hand simulated by keyboard; it is not
+  headset footage. Play on Quest 3/3S in the Quest Browser:
+  https://iftiikhaarr-glitch.github.io/palmful/"
+- **Visibility:** **Public**.
 
-## 4. Final checklist before you submit
+**Gallery images:** each is labelled and carries the emulator caption, in two
+sets:
+- **16:9 (1920×1080):** `palmful-gallery-1-first-target.png`,
+  `palmful-gallery-2-first-bloom.png`, `palmful-gallery-3-all-three-blooms.png`.
+- **3:2 (1500×1000):** the same three as `-3x2` files. Devpost commonly
+  recommends 3:2 for gallery images and thumbnails; check the form's own hint.
 
-**Done:** Start membership (approved 6 Nov 2026) and Meta VR developer account
-(verified).
+**Thumbnail:** `palmful-thumbnail-3x2.png` (1500×1000): the "Palmful" title over
+the all-three-blooms frame, with the emulator caption.
 
-**Fields still to fill in on Devpost** (everything else is ready to paste from
-section 2):
-1. **Video URL.** Use the smoother Windows recording if it's ready and checked;
-   otherwise use the 1:31 cloud MP4 as the fallback. Either way:
-   - **Caption:** "Laptop emulator; hand simulated with keyboard" is visible in
-     every frame.
-   - **Upload:** to YouTube or Vimeo, set to **public**, and confirm it plays
-     while signed out.
-   - **Video title and description** (paste on YouTube or Vimeo):
-     ```
-     Palmful – Bloom demo (laptop emulator)
-     ```
-     ```
-     Palmful is a hands-only game for Meta Quest in passthrough: a tiny creature lives on your open hand, and tilting your palm guides it to a flower on a fingertip, which blooms. This video is laptop-emulator footage (Meta's IWER WebXR emulator) with the hand simulated by keyboard; it is not headset footage. Play on Quest 3/3S in the Quest Browser: https://iftiikhaarr-glitch.github.io/palmful/
-     ```
-2. **Target launch date.** *Not chosen.* First read the field's help text on
-   the form.
-   - **If it asks when the experience is or will be publicly available:** the
-     playable web demo is already live at the build URL.
-   - **If it asks for a planned release (for example a store launch):** choose
-     a date you can stand behind. The current build still needs real-hand
-     testing on a Quest.
-3. **Personal and eligibility fields:** name, country of residence, age or
-   residency confirmations, and the rules and terms checkboxes.
-4. **Team members:** solo, or add teammates.
-5. **Gallery / thumbnail** (if the form asks): the three labelled PNGs from
-   section 3. Use image 1 or 3 as the thumbnail.
-6. **"Built with"** (if the form has it): the tags in section 2. Add Claude
-   Code only if you choose to.
-7. **Any other field** the live form shows that isn't covered here. This
-   session couldn't read the live form.
-
-**Before you click submit:**
-- the build URL opens;
-- the repository is public;
-- the description and tagline are pasted unchanged (the description is under
-  500 words);
-- the video is public.
-
-Submit by about 17 Nov (the deadline is 18 Nov, 12:00 PM PT). After submitting,
-don't push to `main`, and keep Pages up until winners are announced (about
-11 Dec).
+**Smoother video:** `palmful-media-project.zip`, with Windows steps in its
+`README-media.txt`.
 
 ---
 
-## 5. Readiness report
+## 4. Remaining before you press "Submit project"
+
+1. **Video:** choose the smooth recording or the 1:31 fallback, upload it as
+   **public** with the text above, and check it plays while signed out. Paste
+   the link into the form.
+2. **Target launch date:** choose it, then enter it in the field and in the
+   description's last line.
+3. **Paste and upload:** paste the section 2 texts, and upload the gallery
+   images and thumbnail.
+4. **Personal and eligibility questions:** confirm age and residency, accept
+   the rules and terms, and check the membership email field matches your
+   Start approval.
+5. **Preview:** in Devpost's preview, check that the video plays, the link
+   opens, the track is Gaming, the division is New Experience, and the text
+   shows unchanged.
+6. **Submit** by about 17 Nov. After that, don't push to `main`, and keep
+   Pages up until about 11 Dec.
+
+---
+
+## 5. Readiness report (6 Nov 2026)
 
 | Item | State |
 |---|---|
-| Build live at the URL (Bloom default) | Ready. Last deploy: Pages run #16 from current `main` (`e535c31`), all checks passed. |
-| Hands-only, New Experience, Gaming | Ready |
-| Text for every known field | Ready (section 2); live-form limits [?] |
-| Gallery images | Ready (3 PNGs) |
-| Video | Fallback ready (1:31, labelled, choppy); smoother replacement optional, from your laptop. **Not uploaded yet.** |
-| Start membership | **Approved 6 Nov 2026** |
-| Meta VR developer account | **Verified** (as you reported) |
-| Target launch date | **Not chosen:** read the field's help text first (the web demo is already live) |
-| Personal, eligibility and team fields | **You fill these in** |
-| Current build on a Quest (60 fps, guide readability, three blooms) | **Not verified.** An earlier build showed 90 fps in one Quest recording; that is not evidence for the current build. |
+| Public build URL | **Live** at https://iftiikhaarr-glitch.github.io/palmful/. Deployed by Pages run #16 from `main` `e535c31`. On 6 Nov the live URL itself passed the full Bloom session in the laptop emulator (24 checks: seed, three blooms, completion, fist restart, hand loss) and the 2D landing check |
+| Start membership / developer account | Confirmed (as you reported) |
+| Track, division, name, tagline, description, hand interactions | Ready (section 2) |
+| Target launch date | **Open: your decision** (required, because Palmful isn't on the Meta VR Store) |
+| Video | Fallback ready and verified (1:31, labelled, all three blooms and restart); **not uploaded** |
+| Gallery and thumbnail | Ready |
+| Membership email field | Corrected by you; not visible to this session |
+| Devpost draft fields, preview, playback | **Not checked by this session** (no Devpost or video-account access) |
+| Current build on a Quest | **Not verified** (judging expects at least 60 fps on Quest hardware) |
