@@ -86,6 +86,52 @@ Verifying the current build on Quest 3 and 3S with first-time players, a replay 
 Target launch date: 15 January 2027
 ```
 
+**About the project** (the Devpost "Project Story" field, in Markdown). It
+asks for what inspired you, what you learned, how you built it and the
+challenges you faced, so this version adds "Challenges" and "What we learned"
+to the description above. Paste it as one piece.
+````
+## Inspiration
+Holding something small and alive in an open hand, like a ladybird or a firefly, is a quiet, focused moment. Hand tracking makes your hand both the controller and the stage, so Palmful exists only on your palm.
+
+## What it is
+A short, seated, hands-only game for Meta Quest in passthrough. A seed waits in front of you. Hold out an open hand, palm up, and it flies onto your palm and hatches into **Mote**, a tiny round creature. Your palm becomes a small landscape: tilt it and Mote slides. One fingertip carries a glowing flower in the colour it will bloom, and a golden trail shows the way. Rest Mote on that fingertip and the finger blooms. Three blooms, on the middle, index and ring fingers, complete the garden; a fist plays again. On the first session, a guide shows one step at a time. No menus, buttons, controllers or fail states; a session takes a few minutes.
+
+## Why passthrough
+The stage is your real hand. Mote sits on your own palm and the flowers grow from your own fingertips. It does not use the room; the hand is the point.
+
+## How we built it
+Meta's Immersive Web SDK (WebXR) with three.js, in TypeScript, hosted on GitHub Pages, so it opens from a link in the Quest Browser with nothing to install. The game rules are unit-tested and kept separate from rendering. Mote ignores small tracking wobbles and only moves on a deliberate tilt, and hand loss pauses it in place instead of failing the player. Palmful's own visuals and sounds are all generated in code. Each change runs complete play sessions in Meta's IWER emulator before it deploys.
+
+## Challenges
+- **No headset during development.** We built and tested in Meta's IWER emulator, with automated full play sessions, and relied on a tester for real-hand checks.
+- **First-time players didn't know what to do.** Our first Quest tester, on an earlier build, couldn't tell what to do from text alone, so we added an in-game guide that shows one action at a time with an animated hand.
+- **Real hands differ from the emulator.** In the earlier test, an open hand read close to the cup threshold of our second game, Catch. So we submit Bloom, which only needs an open palm and a tilt.
+
+## What we learned
+Design for what hand tracking does well: slow, deliberate poses and a forgiving response to small wobbles. Make every step visible in the scene. And test early with first-time players on real hands, because the emulator can't show how a real hand reads.
+
+## How to try it
+On Quest 3 or 3S, open https://iftiikhaarr-glitch.github.io/palmful/ in the Quest Browser, pinch **Enter AR**, put the controllers down and hold out an open hand, palm up. Without a headset, add `?emulate=1` for a keyboard-driven laptop emulator.
+
+## Testing status
+Palmful was developed and tested mostly in Meta's IWER emulator; the demo video is laptop-emulator footage with the hand simulated by keyboard. One Quest recording of an earlier build showed 90 fps on its debug panel, the seed landing and hatching on a tester's palm, and one finger blooming; that is not evidence for the current build. The current build, which adds the in-game guide, has not yet been verified on a Quest, and neither has a complete three-bloom session on real hands.
+
+## What's next
+Verifying the current build on Quest 3 and 3S with first-time players, a replay challenge for smooth movement, more creatures, Catch once its cup gesture is calibrated on real hands, and Meta VR Glasses support.
+
+**Target launch date:** 15 January 2027
+````
+
+**Gallery captions** (140 characters each)
+1. `First target: Mote on the palm, a golden trail to the pink flower on the middle fingertip. Laptop emulator; hand simulated with keyboard.` (137)
+2. `First bloom: a pink flower on the middle finger; the blue marker shows the next target. Laptop emulator; hand simulated with keyboard.` (134)
+3. `All three in bloom: pink, blue and violet flowers on three fingertips. Laptop emulator; hand simulated with keyboard.` (117)
+
+**"Try it out" links**
+- `https://iftiikhaarr-glitch.github.io/palmful/`
+- `https://github.com/iftiikhaarr-glitch/palmful`
+
 **Hand interactions and the future of VR** (optional field)
 ```
 Palmful is played with one bare hand, seated, and never needs a controller (Enter AR is a pinch on the page's button).
