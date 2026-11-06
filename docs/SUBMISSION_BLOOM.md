@@ -180,6 +180,17 @@ development.
   title and end cards included.
 - **Known weakness:** visibly choppy (about 18 fps capture without a GPU).
 
+**Captioned version (recommended, 6 Nov):** `palmful-demo-emulator-captioned.mp4`.
+- **Footage:** the same 1:31 recording.
+- **Step captions,** timed to the recorded events: "Hold out an open palm: the
+  seed lands and hatches", "Tilt gently toward the glowing flower", "Rest Mote
+  on the fingertip and it blooms (1 of 3)", "Guide Mote to the next flower
+  (2 of 3)", "One more, on the ring finger (3 of 3)", "All three in bloom",
+  "Make a fist to play again", "The garden resets and Mote hatches again".
+- **Disclosure:** the emulator caption is still on every frame.
+- **Music:** add a quiet, licensed track yourself, for example in YouTube
+  Studio's Editor from its Audio Library.
+
 **Upload text** (YouTube or Vimeo):
 - **Title:** `Palmful – Bloom demo (laptop emulator)`
 - **Description:** "Palmful is a hands-only game for Meta Quest in passthrough: a
