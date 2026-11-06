@@ -83,7 +83,7 @@ Palmful was developed and tested mostly in Meta's IWER emulator; the demo video 
 What's next
 Verifying the current build on Quest 3 and 3S with first-time players, a replay challenge for smooth movement, more creatures, a second game (Catch) once its cup gesture is calibrated on real hands, and Meta VR Glasses support.
 
-Target launch date: [YOUR DATE]
+Target launch date: 15 January 2027
 ```
 
 **Hand interactions and the future of VR** (optional field)
@@ -99,12 +99,13 @@ The game reads the WebXR hand joints for a palm frame (centre, normal, finger pa
 What excites us about VR: when your own hand becomes the place where something happens, the experience can only exist in passthrough with hand tracking. That makes small, calm, personal moments possible that no flat screen can give.
 ```
 
-**Target launch date** (its own field; *your decision*)
-
-Palmful is **not** published on the Meta VR Store, so this field applies. The
-playable web build is already live and free. Pick the date you're aiming for
-and enter it in both the field and the last line of the description, for
-example a date after real-hand testing on Quest. I haven't chosen one.
+**Target launch date** (its own field)
+```
+15 January 2027
+```
+Palmful is not published on the Meta VR Store, so this field applies. The
+playable web build is already live and free; 15 January 2027 is your chosen
+target.
 
 **Team members:** if you're entering solo, leave this empty or list yourself
 as you prefer. Otherwise add each member's name, email and role.
@@ -116,7 +117,7 @@ IWSDK, WebXR, three.js, TypeScript, Vite, IWER, Playwright, GitHub Actions, GitH
 *Your decision:* add "Claude Code" if you want to disclose AI-assisted
 development.
 
-**Video link:** your public YouTube or Vimeo URL (section 3).
+**Video link:** `https://youtu.be/8sSLUcxQEO0` (already entered in the draft, as you reported).
 
 ---
 
@@ -185,8 +186,8 @@ the all-three-blooms frame, with the emulator caption.
 | Public build URL | **Live** at https://iftiikhaarr-glitch.github.io/palmful/. Deployed by Pages run #16 from `main` `e535c31`. On 6 Nov the live URL itself passed the full Bloom session in the laptop emulator (24 checks: seed, three blooms, completion, fist restart, hand loss) and the 2D landing check |
 | Start membership / developer account | Confirmed (as you reported) |
 | Track, division, name, tagline, description, hand interactions | Ready (section 2) |
-| Target launch date | **Open: your decision** (required, because Palmful isn't on the Meta VR Store) |
-| Video | Fallback ready and verified (1:31, labelled, all three blooms and restart); **not uploaded** |
+| Target launch date | **15 January 2027** (your decision; also in the description's last line) |
+| Video | 1:31 fallback (labelled; all three blooms and restart). Link entered: https://youtu.be/8sSLUcxQEO0. **Public playback not verified by this session** |
 | Gallery and thumbnail | Ready |
 | Membership email field | Corrected by you; not visible to this session |
 | Devpost draft fields, preview, playback | **Not checked by this session** (no Devpost or video-account access) |
