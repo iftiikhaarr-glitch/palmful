@@ -4,11 +4,14 @@ Prepared 5 Nov 2026 from `main` at `e535c31`. **Bloom is the submitted mode**
 (the default at the build URL). Catch stays in the build behind `?catch=1` and
 is not part of this entry. Nothing has been entered on Devpost or uploaded.
 
-**Status you reported:**
+**Eligibility, as you reported it (both confirmed):**
 - **Meta VR Start:** membership **approved on 6 Nov 2026** (the "Congratulations
   and welcome to the Start program" email).
-- **Developer Access:** **still not verified**. Nothing here should claim it is
-  active.
+- **Meta VR developer account:** **verified**. Your account shows "You have
+  successfully verified your Meta VR developer account."
+
+Keep both confirmations (email and account page) in case the organisers ask
+for proof of eligibility.
 
 ---
 
@@ -25,8 +28,8 @@ is not part of this entry. Nothing has been entered on Devpost or uploaded.
 | Requirement | Detail | Source |
 |---|---|---|
 | Deadline | 18 Nov 2026, 12:00 PM PT (= 19 Nov 00:00 Dubai). No changes after the deadline. | R, S |
-| Eligibility | Only members of the Meta VR Start program; you must be a member **by the time you submit**. A Meta developer account is required; organisers may ask for proof of eligibility. | S |
-| Developer Access | An active Meta account with Developer Access. | R (exact wording [?]) |
+| Eligibility | Only members of the Meta VR Start program; you must be a member **by the time you submit**. A Meta developer account is required; organisers may ask for proof of eligibility. **Confirmed:** Start approved on 6 Nov 2026. | S |
+| Developer Access | An active Meta account with Developer Access. **Confirmed:** your Meta VR developer account shows as verified. | R (exact wording [?]) |
 | Division | New Experience: conceived and built on or after 24 Sep 2026 (this repository starts on 2 Nov 2026). | R |
 | Hands-only | Fully usable with hands end to end, with no controller ever needed. | R, S |
 | WebXR/IWSDK entries | Submit **a link** to the hosted build. It must stay available until winners are announced (about 11 Dec). | R ([?] for the exact form field) |
@@ -149,24 +152,53 @@ hand simulated with keyboard".
 
 ---
 
-## 4. Only you can do these
+## 4. Final checklist before you submit
 
-1. **Start approval:** done. Approved 6 Nov 2026; keep the email.
-2. **Developer Access:** verify it on your Meta developer account.
-3. **Video:** record the smoother replacement (zip) or approve the 1:31 cloud
-   version. Watch it once; the caption must be in every frame.
-4. **Upload:** put the video on YouTube or Vimeo as **public**, check it plays
-   while signed out, and paste the link.
-5. **Personal and eligibility fields:** name, country, age and residency
-   confirmations, and team.
-6. **Decide:** what the target launch date field means and what to enter (not
-   chosen yet), and whether to list Claude Code.
-7. **Final check, then submit** by about 17 Nov:
-   - the build URL opens on a laptop;
-   - the repository is public.
+**Done:** Start membership (approved 6 Nov 2026) and Meta VR developer account
+(verified).
 
-   After submitting, don't push to `main`, and keep Pages up until winners are
-   announced.
+**Fields still to fill in on Devpost** (everything else is ready to paste from
+section 2):
+1. **Video URL.** Use the smoother Windows recording if it's ready and checked;
+   otherwise use the 1:31 cloud MP4 as the fallback. Either way:
+   - **Caption:** "Laptop emulator; hand simulated with keyboard" is visible in
+     every frame.
+   - **Upload:** to YouTube or Vimeo, set to **public**, and confirm it plays
+     while signed out.
+   - **Video title and description** (paste on YouTube or Vimeo):
+     ```
+     Palmful – Bloom demo (laptop emulator)
+     ```
+     ```
+     Palmful is a hands-only game for Meta Quest in passthrough: a tiny creature lives on your open hand, and tilting your palm guides it to a flower on a fingertip, which blooms. This video is laptop-emulator footage (Meta's IWER WebXR emulator) with the hand simulated by keyboard; it is not headset footage. Play on Quest 3/3S in the Quest Browser: https://iftiikhaarr-glitch.github.io/palmful/
+     ```
+2. **Target launch date.** *Not chosen.* First read the field's help text on
+   the form.
+   - **If it asks when the experience is or will be publicly available:** the
+     playable web demo is already live at the build URL.
+   - **If it asks for a planned release (for example a store launch):** choose
+     a date you can stand behind. The current build still needs real-hand
+     testing on a Quest.
+3. **Personal and eligibility fields:** name, country of residence, age or
+   residency confirmations, and the rules and terms checkboxes.
+4. **Team members:** solo, or add teammates.
+5. **Gallery / thumbnail** (if the form asks): the three labelled PNGs from
+   section 3. Use image 1 or 3 as the thumbnail.
+6. **"Built with"** (if the form has it): the tags in section 2. Add Claude
+   Code only if you choose to.
+7. **Any other field** the live form shows that isn't covered here. This
+   session couldn't read the live form.
+
+**Before you click submit:**
+- the build URL opens;
+- the repository is public;
+- the description and tagline are pasted unchanged (the description is under
+  500 words);
+- the video is public.
+
+Submit by about 17 Nov (the deadline is 18 Nov, 12:00 PM PT). After submitting,
+don't push to `main`, and keep Pages up until winners are announced (about
+11 Dec).
 
 ---
 
@@ -174,12 +206,13 @@ hand simulated with keyboard".
 
 | Item | State |
 |---|---|
-| Build live at the URL (Bloom default) | Ready. Last deploy: Pages run #15 from `2d5d0ac`, all checks passed. `main` since has docs-only changes. |
+| Build live at the URL (Bloom default) | Ready. Last deploy: Pages run #16 from current `main` (`e535c31`), all checks passed. |
 | Hands-only, New Experience, Gaming | Ready |
 | Text for every known field | Ready (section 2); live-form limits [?] |
 | Gallery images | Ready (3 PNGs) |
-| Video | Fallback ready (choppy); smoother replacement needs your laptop |
+| Video | Fallback ready (1:31, labelled, choppy); smoother replacement optional, from your laptop. **Not uploaded yet.** |
 | Start membership | **Approved 6 Nov 2026** |
-| Developer Access | **Not yet verified** |
-| Target launch date | **Not chosen:** check the field's meaning first (the web demo is already live) |
+| Meta VR developer account | **Verified** (as you reported) |
+| Target launch date | **Not chosen:** read the field's help text first (the web demo is already live) |
+| Personal, eligibility and team fields | **You fill these in** |
 | Current build on a Quest (60 fps, guide readability, three blooms) | **Not verified.** An earlier build showed 90 fps in one Quest recording; that is not evidence for the current build. |
