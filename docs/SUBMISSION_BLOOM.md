@@ -4,11 +4,11 @@ Prepared 5 Nov 2026 from `main` at `e535c31`. **Bloom is the submitted mode**
 (the default at the build URL). Catch stays in the build behind `?catch=1` and
 is not part of this entry. Nothing has been entered on Devpost or uploaded.
 
-**Status you reported (5 Nov):**
-- **Meta VR Start:** the application is **submitted, approval pending**.
-- **Developer Access:** **not yet verified**.
-
-Neither is active, and nothing here should claim otherwise.
+**Status you reported:**
+- **Meta VR Start:** membership **approved on 6 Nov 2026** (the "Congratulations
+  and welcome to the Start program" email).
+- **Developer Access:** **still not verified**. Nothing here should claim it is
+  active.
 
 ---
 
@@ -61,7 +61,7 @@ https://iftiikhaarr-glitch.github.io/palmful/
 ```
 **Source code** (if asked): `https://github.com/iftiikhaarr-glitch/palmful`
 
-**Description** (486 words; paste as one piece)
+**Description** (495 words; paste as one piece)
 ```
 Inspiration
 Holding something small and alive in an open hand, like a ladybird or a firefly, is a quiet, focused moment. Hand tracking makes your hand both the controller and the stage, so Palmful exists only on your palm.
@@ -85,7 +85,7 @@ How we built it
 Meta's Immersive Web SDK (WebXR) with three.js, in TypeScript, hosted on GitHub Pages: it opens from a link in the Quest Browser with nothing to install. The game rules are unit-tested and kept separate from rendering. Palmful's own visuals and sounds are all generated in code. Each change runs complete play sessions in Meta's IWER emulator before it deploys.
 
 Testing status
-Palmful was developed and tested mostly in Meta's IWER emulator. In one Quest recording of an earlier build, Bloom ran at 90 fps, the seed landed on the tester's palm and hatched, Mote rode on their hand, and one finger bloomed. The current build, which adds the in-game guide, has not yet been verified on a Quest, and neither has a complete three-bloom session on real hands. The demo video is laptop-emulator footage, with the hand simulated by keyboard.
+Palmful was developed and tested mostly in Meta's IWER emulator. One Quest recording of an earlier build showed 90 fps on its debug panel, the seed landing on the tester's palm and hatching, Mote riding on their hand, and one finger blooming. That is not evidence for the current build. The current build, which adds the in-game guide, has not yet been tested on a Quest, and neither has a complete three-bloom session on real hands. The demo video is laptop-emulator footage, with the hand simulated by keyboard.
 
 What's next
 A replay challenge for smooth movement, more creatures, a second game (Catch) once its cup gesture is calibrated on real hands, and Meta VR Glasses support.
@@ -104,9 +104,10 @@ IWSDK, WebXR, three.js, TypeScript, Vite, IWER, Playwright, GitHub Actions, GitH
 disclose AI-assisted development.
 
 **Video URL:** *your public YouTube or Vimeo link* (section 3).
-**Target launch date:** *your decision.* Suggested: 15 January 2027, which
-leaves time after judging to verify the current build on a Quest. Alternatively
-use today's date, if the form means "already live".
+**Target launch date:** *not chosen.* Check first what this Devpost field
+asks for: a planned store or public release, or simply when the experience is
+available. The playable web demo is already live at the build URL. Decide and
+enter it only after that check.
 **Gallery:** the three PNGs in section 3. Caption each one "Laptop emulator;
 hand simulated with keyboard".
 
@@ -127,9 +128,12 @@ hand simulated with keyboard".
   - `palmful-gallery-1-first-target.png`
   - `palmful-gallery-2-first-bloom.png`
   - `palmful-gallery-3-all-three-blooms.png`
-- **`palmful-media-project.zip`:** the scripts that record and edit a smoother
-  replacement on a Windows laptop (Node, Git and FFmpeg only); steps in its
-  `README-media.txt`.
+- **`palmful-media-project.zip`:** the scripts that record, edit and check a
+  smoother replacement on a Windows laptop (Node, Git and FFmpeg only); steps in
+  its `README-media.txt`. `check.mjs` reports the capture frame rate (GOOD or
+  CHOPPY), confirms the seed landing, the three blooms and the restart, checks
+  the length, and writes a one-frame-per-second contact sheet. Keep the 1:31
+  cloud MP4 as the fallback.
   - Tested in the cloud: a fresh recording, then `node build.mjs`, produced an
     89.5 s 1080p MP4.
   - Not tested here: the visible-window GPU mode and Windows itself.
@@ -147,8 +151,7 @@ hand simulated with keyboard".
 
 ## 4. Only you can do these
 
-1. **Start approval:** check that Meta VR Start has approved your membership.
-   **You can't submit before it is approved.**
+1. **Start approval:** done. Approved 6 Nov 2026; keep the email.
 2. **Developer Access:** verify it on your Meta developer account.
 3. **Video:** record the smoother replacement (zip) or approve the 1:31 cloud
    version. Watch it once; the caption must be in every frame.
@@ -156,7 +159,8 @@ hand simulated with keyboard".
    while signed out, and paste the link.
 5. **Personal and eligibility fields:** name, country, age and residency
    confirmations, and team.
-6. **Decide:** the target launch date and whether to list Claude Code.
+6. **Decide:** what the target launch date field means and what to enter (not
+   chosen yet), and whether to list Claude Code.
 7. **Final check, then submit** by about 17 Nov:
    - the build URL opens on a laptop;
    - the repository is public.
@@ -175,6 +179,7 @@ hand simulated with keyboard".
 | Text for every known field | Ready (section 2); live-form limits [?] |
 | Gallery images | Ready (3 PNGs) |
 | Video | Fallback ready (choppy); smoother replacement needs your laptop |
-| Start membership | **Pending (blocker until approved)** |
+| Start membership | **Approved 6 Nov 2026** |
 | Developer Access | **Not yet verified** |
-| Current build on a Quest (60 fps, guide readability, three blooms) | **Not verified.** Only an earlier build ran on a Quest, at 90 fps in one recording. |
+| Target launch date | **Not chosen:** check the field's meaning first (the web demo is already live) |
+| Current build on a Quest (60 fps, guide readability, three blooms) | **Not verified.** An earlier build showed 90 fps in one Quest recording; that is not evidence for the current build. |
